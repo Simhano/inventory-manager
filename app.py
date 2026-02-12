@@ -103,7 +103,10 @@ if page == "Dashboard":
         low_stock = df[df['quantity'] <= df['min_threshold']]
         if not low_stock.empty:
             st.warning(f"⚠️ {len(low_stock)} items are low on stock!")
-            st.dataframe(style_dataframe(low_stock[['name', 'quantity', 'min_threshold']]), hide_index=True)
+            cols = ['name', 'quantity', 'min_threshold']
+            if 'supplier' in low_stock.columns:
+                cols.append('supplier')
+            st.dataframe(style_dataframe(low_stock[cols]), hide_index=True)
         else:
             st.success("All stock levels are healthy.")
             
