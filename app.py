@@ -13,6 +13,19 @@ try:
 except Exception as e:
     st.error(f"Failed to connect to database: {e}")
 
+
+# --- UI Helpers ---
+def style_dataframe(df):
+    """Applies alternating row colors (White / Light Blue) to a dataframe."""
+    def highlight_rows(row):
+        # Check if index is integer, if not try to use implicit counter
+        # robust way: alternating colors regardless of index value
+        return ['background-color: #e6f3ff' if row.name % 2 != 0 else 'background-color: #ffffff' for _ in row]
+    
+    # Ensure zero-based integer index for styling
+    df = df.reset_index(drop=True)
+    return df.style.apply(highlight_rows, axis=1)
+
 # --- Authentication ---
 
 def check_global_password():
@@ -90,14 +103,14 @@ if page == "Dashboard":
         low_stock = df[df['quantity'] <= df['min_threshold']]
         if not low_stock.empty:
             st.warning(f"⚠️ {len(low_stock)} items are low on stock!")
-            st.dataframe(low_stock[['name', 'quantity', 'min_threshold']], hide_index=True)
+            st.dataframe(style_dataframe(low_stock[['name', 'quantity', 'min_threshold']]), hide_index=True)
         else:
             st.success("All stock levels are healthy.")
             
         # Recent Activity (Mini)
         st.subheader("Recent Activity")
         trans_df = get_transactions_df(limit=5)
-        st.dataframe(trans_df, hide_index=True)
+        st.dataframe(style_dataframe(trans_df), hide_index=True)
 
         # Top Selling Items
         st.subheader("🏆 Top Selling Items")
@@ -107,7 +120,7 @@ if page == "Dashboard":
             top_week = get_top_selling_items("week", 10)
             if not top_week.empty:
                 st.bar_chart(top_week, x="Item Name", y="Total Sold")
-                st.dataframe(top_week, hide_index=True)
+                st.dataframe(style_dataframe(top_week), hide_index=True)
             else:
                 st.info("No sales this week.")
                 
@@ -115,7 +128,7 @@ if page == "Dashboard":
             top_month = get_top_selling_items("month", 10)
             if not top_month.empty:
                 st.bar_chart(top_month, x="Item Name", y="Total Sold")
-                st.dataframe(top_month, hide_index=True)
+                st.dataframe(style_dataframe(top_month), hide_index=True)
             else:
                 st.info("No sales this month.")
     else:
@@ -219,7 +232,7 @@ elif page == "Inventory (Admin)":
     # View Inventory
     st.subheader("Current Stock")
     if not df.empty:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(style_dataframe(df), use_container_width=True, hide_index=True)
     else:
         st.info("Inventory is empty.")
 
@@ -245,7 +258,7 @@ elif page == "Transactions":
             label = format_item_label(row)
             item_map[label] = row
             
-        selected_label = st.selectbox("Search & Select Item (Name | Barcode | Category)", options=list(item_map.keys()))
+        selected_label = st.selectbox("Search & Select Item (Name | Barcode | Category)", options=list(item_map.keys()), index=None, placeholder="Type to search or Scan Barcode...")
         
         if selected_label:
             row = item_map[selected_label]
@@ -292,7 +305,7 @@ elif page == "History":
     st.header("Transaction History")
     df = get_transactions_df(limit=200)
     if not df.empty:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(style_dataframe(df), use_container_width=True, hide_index=True)
     else:
         st.info("No transactions recorded yet.")
 
