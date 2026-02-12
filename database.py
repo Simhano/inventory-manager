@@ -92,6 +92,10 @@ def get_transactions_df(limit=100):
 def add_item(name, category, maker, supplier, color, barcode, quantity, price, min_threshold):
     """Add a new item to the inventory."""
     try:
+        # Treat empty barcode as None to avoid unique constraint violation on empty strings
+        if not barcode:
+            barcode = None
+
         # Check if item exists (by name or barcode)
         # Unique constraints on DB will handle this, but we can check nicely.
         existing = supabase.table("inventory").select("id").eq("name", name).execute()
@@ -151,6 +155,10 @@ def update_stock(item_id, item_name, change_amount, transaction_type, note=""):
 
 def update_item_details(item_id, name, category, maker, supplier, color, barcode, price, min_threshold):
     try:
+        # Treat empty barcode as None
+        if not barcode:
+            barcode = None
+            
         data = {
             "name": name,
             "category": category,
