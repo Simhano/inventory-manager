@@ -153,8 +153,9 @@ elif page == "Inventory (Admin)":
             name = col1.text_input("Item Name")
             category = col2.text_input("Category")
             
-            col_maker, col_color, col_barcode = st.columns(3)
+            col_maker, col_supplier, col_color, col_barcode = st.columns(4)
             maker = col_maker.text_input("Maker/Brand")
+            supplier = col_supplier.text_input("Supplier")
             color = col_color.text_input("Color")
             barcode = col_barcode.text_input("Barcode")
             
@@ -166,7 +167,7 @@ elif page == "Inventory (Admin)":
             submitted = st.form_submit_button("Add Item")
             if submitted:
                 if name:
-                    success, msg = add_item(name, category, maker, color, barcode, quantity, price, min_threshold)
+                    success, msg = add_item(name, category, maker, supplier, color, barcode, quantity, price, min_threshold)
                     if success:
                         st.success(msg)
                         time.sleep(1)
@@ -193,12 +194,14 @@ elif page == "Inventory (Admin)":
                     new_name = col1.text_input("Item Name", value=item_row['name'])
                     new_category = col2.text_input("Category", value=item_row['category'] if item_row['category'] else "")
                     
-                    col_maker, col_color, col_barcode = st.columns(3)
+                    col_maker, col_supplier, col_color, col_barcode = st.columns(4)
                     curr_maker = item_row['maker'] if 'maker' in item_row and item_row['maker'] is not None else ""
+                    curr_supplier = item_row['supplier'] if 'supplier' in item_row and item_row['supplier'] is not None else ""
                     curr_color = item_row['color'] if 'color' in item_row and item_row['color'] is not None else ""
                     curr_barcode = item_row['barcode'] if 'barcode' in item_row and item_row['barcode'] is not None else ""
                     
                     new_maker = col_maker.text_input("Maker/Brand", value=curr_maker)
+                    new_supplier = col_supplier.text_input("Supplier", value=curr_supplier)
                     new_color = col_color.text_input("Color", value=curr_color)
                     new_barcode = col_barcode.text_input("Barcode", value=curr_barcode)
                     
@@ -209,7 +212,7 @@ elif page == "Inventory (Admin)":
                     col_update, col_delete = st.columns([1, 1])
                     with col_update:
                         if st.form_submit_button("Update Item Details"):
-                            success, msg = update_item_details(edit_id, new_name, new_category, new_maker, new_color, new_barcode, new_price, new_threshold)
+                            success, msg = update_item_details(edit_id, new_name, new_category, new_maker, new_supplier, new_color, new_barcode, new_price, new_threshold)
                             if success:
                                 st.success(f"Updated {new_name}: {msg}")
                                 time.sleep(1)

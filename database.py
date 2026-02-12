@@ -89,7 +89,7 @@ def get_transactions_df(limit=100):
         st.error(f"Error fetching transactions: {e}")
         return pd.DataFrame()
 
-def add_item(name, category, maker, color, barcode, quantity, price, min_threshold):
+def add_item(name, category, maker, supplier, color, barcode, quantity, price, min_threshold):
     """Add a new item to the inventory."""
     try:
         # Check if item exists (by name or barcode)
@@ -107,6 +107,7 @@ def add_item(name, category, maker, color, barcode, quantity, price, min_thresho
             "name": name,
             "category": category,
             "maker": maker,
+            "supplier": supplier,
             "color": color,
             "barcode": barcode,
             "quantity": quantity,
@@ -148,12 +149,13 @@ def update_stock(item_id, item_name, change_amount, transaction_type, note=""):
     except Exception as e:
         return False, str(e)
 
-def update_item_details(item_id, name, category, maker, color, barcode, price, min_threshold):
+def update_item_details(item_id, name, category, maker, supplier, color, barcode, price, min_threshold):
     try:
         data = {
             "name": name,
             "category": category,
             "maker": maker,
+            "supplier": supplier,
             "color": color,
             "barcode": barcode,
             "price": price,
