@@ -79,26 +79,26 @@ def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False
     <head>
         <title>Receipt</title>
         <style>
-            body { font-family: 'Courier New', monospace; width: 300px; margin: 0 auto; }
-            .header, .footer { text-align: center; }
-            table { width: 100%; border-collapse: collapse; }
+            body {{ font-family: 'Courier New', monospace; width: 300px; margin: 0 auto; }}
+            .header, .footer {{ text-align: center; }}
+            table {{ width: 100%; border-collapse: collapse; }}
             
             /* Spacing and Alignment */
-            th, td { padding: 5px 2px; } /* Vertical 5px, Horizontal 2px */
+            th, td {{ padding: 5px 2px; }} /* Vertical 5px, Horizontal 2px */
             
             /* Item (Left) */
-            th:nth-child(1), td:nth-child(1) { text-align: left; width: 40%; }
+            th:nth-child(1), td:nth-child(1) {{ text-align: left; width: 40%; }}
             /* Qty (Center) */
-            th:nth-child(2), td:nth-child(2) { text-align: center; width: 15%; }
+            th:nth-child(2), td:nth-child(2) {{ text-align: center; width: 15%; }}
             /* Price (Right) */
-            th:nth-child(3), td:nth-child(3) { text-align: right; width: 20%; }
+            th:nth-child(3), td:nth-child(3) {{ text-align: right; width: 20%; }}
             /* Total (Right) */
-            th:nth-child(4), td:nth-child(4) { text-align: right; width: 25%; }
+            th:nth-child(4), td:nth-child(4) {{ text-align: right; width: 25%; }}
             
-            .right { text-align: right; }
-            .divider { border-top: 1px dashed black; margin: 10px 0; }
-            .cut-line { border-top: 2px dotted black; margin: 20px 0; text-align: center; }
-            .page-break { page-break-after: always; }
+            .right {{ text-align: right; }}
+            .divider {{ border-top: 1px dashed black; margin: 10px 0; }}
+            .cut-line {{ border-top: 2px dotted black; margin: 20px 0; text-align: center; }}
+            .page-break {{ page-break-after: always; }}
         </style>
         {auto_print_script}
     </head>
