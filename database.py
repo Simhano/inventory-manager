@@ -135,7 +135,7 @@ def add_item(name, category, maker, supplier, color, barcode, quantity, price, m
     except Exception as e:
         return False, str(e)
 
-def update_stock(item_id, item_name, change_amount, transaction_type, note="", receipt_id=None):
+def update_stock(item_id, item_name, change_amount, transaction_type, note="", receipt_id=None, payment_method="CASH"):
     """Update stock level and log transaction."""
     try:
         # 1. Get current stock
@@ -153,13 +153,13 @@ def update_stock(item_id, item_name, change_amount, transaction_type, note="", r
         supabase.table("inventory").update({"quantity": new_qty}).eq("id", item_id).execute()
         
         # 3. Log Transaction
-        log_transaction(item_id, item_name, transaction_type, abs(change_amount), note, receipt_id)
+        log_transaction(item_id, item_name, transaction_type, abs(change_amount), note, receipt_id, payment_method)
         
         return True, f"Stock updated. New Quantity: {new_qty}"
     except Exception as e:
         return False, str(e)
 
-def process_batch_transaction(cart_items, transaction_type="SALE"):
+def process_batch_transaction(cart_items, transaction_type="SALE", payment_method="CASH"):
     """
     Process multiple items in a single transaction (Receipt).
     cart_items: List of dicts {'id', 'name', 'qty', 'note'}
@@ -178,40 +178,8 @@ def process_batch_transaction(cart_items, transaction_type="SALE"):
                 change, 
                 transaction_type, 
                 item.get('note', ''), 
-                receipt_id
-            )
-            
-            if not success:
-                errors.append(f"Failed {item['name']}: {msg}")
-        
-        if errors:
-            return False, "Some items failed: " + "; ".join(errors)
-            
-        return True, receipt_id
-        
-    except Exception as e:
-        return False, str(e)
-
-def process_batch_transaction(cart_items, transaction_type="SALE"):
-    """
-    Process multiple items in a single transaction (Receipt).
-    cart_items: List of dicts {'id', 'name', 'qty', 'note'}
-    """
-    try:
-        receipt_id = str(uuid.uuid4())
-        errors = []
-        
-        for item in cart_items:
-            # Determine change amount (Negative for SALE)
-            change = -item['qty'] if transaction_type == "SALE" else item['qty']
-            
-            success, msg = update_stock(
-                item['id'], 
-                item['name'], 
-                change, 
-                transaction_type, 
-                item.get('note', ''), 
-                receipt_id
+                receipt_id,
+                payment_method
             )
             
             if not success:
@@ -251,7 +219,7 @@ def update_item_details(item_id, name, category, maker, supplier, color, barcode
     except Exception as e:
         return False, str(e)
 
-def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None):
+def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None, payment_method="CASH"):
     try:
         data = {
             "item_id": item_id,
@@ -260,7 +228,8 @@ def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None):
             "quantity": quantity, # Always positive in log
             "note": note,
             "timestamp": datetime.now().isoformat(),
-            "receipt_id": receipt_id
+            "receipt_id": receipt_id,
+            "payment_method": payment_method
         }
         supabase.table("transactions").insert(data).execute()
     except Exception as e:

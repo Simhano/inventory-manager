@@ -412,24 +412,45 @@ elif page == "Transactions":
             auto_print = st.checkbox("Auto-Print Receipt", value=True)
             
         with col_chk_2:
-            if st.button("✅ COMPLETE TRANSACTION", type="primary", use_container_width=True):
-                success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE")
-                
-                if success:
-                    st.success("Transaction Complete!")
+            col_cash, col_card = st.columns(2)
+            
+            with col_cash:
+                if st.button("💵 PAY CASH", type="primary", use_container_width=True):
+                    success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE", "CASH")
                     
-                    # Generate Receipt
-                    receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print)
+                    if success:
+                        st.success("Cash Transaction Complete!")
+                        
+                        # Generate Receipt
+                        receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print)
+                        
+                        # Store in session state for reprint
+                        st.session_state["last_receipt"] = receipt_html
+                        
+                        # Clear Cart
+                        st.session_state["cart"] = []
+                        st.rerun()
+                    else:
+                        st.error(f"Transaction Failed: {receipt_id}")
+
+            with col_card:
+                if st.button("💳 PAY CARD", type="secondary", use_container_width=True):
+                    success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE", "CARD")
                     
-                    # Store in session state for reprint
-                    st.session_state["last_receipt"] = receipt_html
-                    
-                    # Clear Cart
-                    st.session_state["cart"] = []
-                    st.rerun() # Rerun to show the receipt in the "Last Transaction" section
-                    
-                else:
-                    st.error(f"Transaction Failed: {receipt_id}")
+                    if success:
+                        st.success("Card Transaction Recorded!")
+                        
+                        # Generate Receipt
+                        receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print)
+                        
+                        # Store in session state for reprint
+                        st.session_state["last_receipt"] = receipt_html
+                        
+                        # Clear Cart
+                        st.session_state["cart"] = []
+                        st.rerun()
+                    else:
+                        st.error(f"Transaction Failed: {receipt_id}")
                     
         if st.button("Empty Cart (Cancel)"):
              st.session_state["cart"] = []
