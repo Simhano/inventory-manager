@@ -153,9 +153,13 @@ def update_stock(item_id, item_name, change_amount, transaction_type, note="", r
         supabase.table("inventory").update({"quantity": new_qty}).eq("id", item_id).execute()
         
         # 3. Log Transaction
-        log_transaction(item_id, item_name, transaction_type, abs(change_amount), note, receipt_id, payment_method)
+        log_success, log_err = log_transaction(item_id, item_name, transaction_type, abs(change_amount), note, receipt_id, payment_method)
         
-        return True, f"Stock updated. New Quantity: {new_qty}"
+        msg = f"Stock updated. New Quantity: {new_qty}"
+        if not log_success:
+            msg += f" (⚠️ History Log Failed: {log_err})"
+            
+        return True, msg
     except Exception as e:
         return False, str(e)
 
@@ -171,6 +175,11 @@ def process_batch_transaction(cart_items, transaction_type="SALE", payment_metho
         for item in cart_items:
             # Determine change amount (Negative for SALE)
             change = -item['qty'] if transaction_type == "SALE" else item['qty']
+            
+            # Special case for RESTOCK mode - positive change, same transaction type name or different?
+            # User passed "RESTOCK" as transaction_type for restocks.
+            if transaction_type == "RESTOCK":
+                 change = item['qty']
             
             success, msg = update_stock(
                 item['id'], 
@@ -232,14 +241,19 @@ def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None, 
             "payment_method": payment_method
         }
         supabase.table("transactions").insert(data).execute()
+        return True, "Logged"
     except Exception as e:
         print(f"Failed to log transaction with payment_method: {e}")
-        # Fallback: Try without payment_method (in case DB schema isn't updated)
+        # Fallback: Try without payment_method AND receipt_id (safest fallback)
         try:
-            del data["payment_method"]
+            # Use pop to avoid KeyError if key doesn't exist
+            data.pop("payment_method", None)
+            data.pop("receipt_id", None)
             supabase.table("transactions").insert(data).execute()
+            return True, "Logged (Fallback)"
         except Exception as e2:
              print(f"Failed to log transaction (fallback): {e2}")
+             return False, str(e2)
 
 def delete_item(item_id):
     """Delete item and its transactions."""
