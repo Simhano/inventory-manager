@@ -47,6 +47,33 @@ def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False
         
     auto_print_script = "<script>window.onload = function() { window.print(); }</script>" if auto_print else ""
 
+    def get_receipt_body(copy_type):
+        return f"""
+        <div class="receipt-container">
+            <div class="header">
+                <h3>Inventory Store</h3>
+                <p>Receipt ID: {receipt_id[:8]}</p>
+                <p>{date_str}</p>
+                <p><strong>*** {copy_type} ***</strong></p>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <table>
+                <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+                {rows_html}
+            </table>
+            
+            <div class="divider"></div>
+            
+            <p class="right"><strong>TOTAL: ${total_amount:.2f}</strong></p>
+            
+            <div class="footer">
+                <p>Thank you for your business!</p>
+            </div>
+        </div>
+        """
+
     html = f"""
     <html>
     <head>
@@ -58,34 +85,19 @@ def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False
             th, td {{ text-align: left; padding: 5px 0; }}
             .right {{ text-align: right; }}
             .divider {{ border-top: 1px dashed black; margin: 10px 0; }}
+            .cut-line {{ border-top: 2px dotted black; margin: 20px 0; text-align: center; }}
+            .page-break {{ page-break-after: always; }}
         </style>
         {auto_print_script}
     </head>
     <body>
-        <div class="header">
-            <h3>Inventory Store</h3>
-            <p>Receipt ID: {receipt_id[:8]}</p>
-            <p>{date_str}</p>
-        </div>
+        {get_receipt_body("CUSTOMER COPY")}
         
-        <div class="divider"></div>
+        <br>
+        <div class="cut-line">✂️ - - - - - - - - - - - - ✂️</div>
+        <br>
         
-        <table>
-            <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
-            {rows_html}
-        </table>
-        
-        <div class="divider"></div>
-        
-        <p class="right"><strong>TOTAL: ${total_amount:.2f}</strong></p>
-        
-        <div class="footer">
-            <p>Thank you for your business!</p>
-            <br><br>
-            <p>*** CUSTOMER COPY ***</p>
-            <br>
-            <p>*** MERCHANT COPY ***</p>
-        </div>
+        {get_receipt_body("MERCHANT COPY")}
     </body>
     </html>
     """
@@ -410,12 +422,12 @@ elif page == "Transactions":
                     # Generate Receipt
                     receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print)
                     
+                    # Store in session state for reprint
+                    st.session_state["last_receipt"] = receipt_html
+                    
                     # Clear Cart
                     st.session_state["cart"] = []
-                    
-                    # Show Receipt (in expender or modal-like)
-                    with st.expander("📄 Receipt (Click to Print)", expanded=True):
-                         st.components.v1.html(receipt_html, height=600, scrolling=True)
+                    st.rerun() # Rerun to show the receipt in the "Last Transaction" section
                     
                 else:
                     st.error(f"Transaction Failed: {receipt_id}")
@@ -423,6 +435,23 @@ elif page == "Transactions":
         if st.button("Empty Cart (Cancel)"):
              st.session_state["cart"] = []
              st.rerun()
+             
+    if "last_receipt" in st.session_state and st.session_state["last_receipt"]:
+        st.divider()
+        st.subheader("📄 Last Transaction Receipt")
+        col_repr_1, col_repr_2 = st.columns([1, 4])
+        
+        with col_repr_1:
+            # We can't trigger a browser print directly from a button click easily without re-rendering the HTML with auto-print
+            # So we re-render the HTML components
+            if st.button("🖨️ Reprint Receipt"):
+                # Append auto-print script if not present (simple hack)
+                if "window.print()" not in st.session_state["last_receipt"]:
+                     st.session_state["last_receipt"] = st.session_state["last_receipt"].replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                st.rerun()
+
+        with st.expander("View Receipt", expanded=True):
+             st.components.v1.html(st.session_state["last_receipt"], height=600, scrolling=True)
             
     else:
         st.info("Cart is empty.")
