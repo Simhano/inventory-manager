@@ -415,18 +415,22 @@ elif page == "Transactions":
             col_cash, col_card = st.columns(2)
             
             with col_cash:
-                if st.button("💵 PAY CASH", type="primary", use_container_width=True):
-                    success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE", "CASH")
-                    
                     if success:
                         st.success("Cash Transaction Complete!")
                         
-                        # Generate Receipt
-                        receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print)
+                        # Generate Receipt Content (No Auto-Print Script yet)
+                        receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print=False)
                         
-                        # Store in session state for reprint
+                        # Store in session state for reprint (clean version)
                         st.session_state["last_receipt"] = receipt_html
                         
+                        # For immediate auto-print, we inject the script here
+                        if auto_print:
+                            receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                            st.session_state["actions_trigger_print"] = receipt_html_print
+                        else:
+                             st.session_state["actions_trigger_print"] = None
+
                         # Clear Cart
                         st.session_state["cart"] = []
                         st.rerun()
@@ -440,11 +444,18 @@ elif page == "Transactions":
                     if success:
                         st.success("Card Transaction Recorded!")
                         
-                        # Generate Receipt
-                        receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print)
+                        # Generate Receipt Content
+                        receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print=False)
                         
-                        # Store in session state for reprint
+                        # Store clean version
                         st.session_state["last_receipt"] = receipt_html
+                        
+                        # Trigger Auto-Print
+                        if auto_print:
+                            receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                            st.session_state["actions_trigger_print"] = receipt_html_print
+                        else:
+                             st.session_state["actions_trigger_print"] = None
                         
                         # Clear Cart
                         st.session_state["cart"] = []
@@ -456,19 +467,24 @@ elif page == "Transactions":
              st.session_state["cart"] = []
              st.rerun()
              
+    # Handle Auto-Print Trigger (Immediate)
+    if "actions_trigger_print" in st.session_state and st.session_state["actions_trigger_print"]:
+         # Show the print version
+         st.components.v1.html(st.session_state["actions_trigger_print"], height=0, width=0, scrolling=False)
+         # Clear it immediately so it doesn't reprint on reload
+         st.session_state["actions_trigger_print"] = None
+
+    # Show Last Receipt (Passive View)
     if "last_receipt" in st.session_state and st.session_state["last_receipt"]:
         st.divider()
         st.subheader("📄 Last Transaction Receipt")
         col_repr_1, col_repr_2 = st.columns([1, 4])
         
         with col_repr_1:
-            # We can't trigger a browser print directly from a button click easily without re-rendering the HTML with auto-print
-            # So we re-render the HTML components
             if st.button("🖨️ Reprint Receipt"):
-                # Append auto-print script if not present (simple hack)
-                if "window.print()" not in st.session_state["last_receipt"]:
-                     st.session_state["last_receipt"] = st.session_state["last_receipt"].replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
-                st.rerun()
+                # Inject print script into the stored clean HTML
+                print_html = st.session_state["last_receipt"].replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                st.components.v1.html(print_html, height=0, width=0, scrolling=False)
 
         with st.expander("View Receipt", expanded=True):
              st.components.v1.html(st.session_state["last_receipt"], height=600, scrolling=True)
