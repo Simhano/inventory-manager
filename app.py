@@ -325,8 +325,13 @@ elif page == "Transactions":
     st.header("🛒 Point of Sale (POS)")
 
     # 1. Search & Add to Cart
-    st.subheader("Add Item to Cart")
-    
+    col_mode_1, col_mode_2 = st.columns([3, 1])
+    with col_mode_1:
+        st.subheader("Add Item to Cart")
+    with col_mode_2:
+        # Transaction Mode Selector
+        mode = st.radio("Mode", ["Sale", "Restock"], horizontal=True, label_visibility="collapsed")
+        
     df = get_inventory_df()
     if df.empty:
         st.warning("No items in inventory.")
@@ -334,8 +339,9 @@ elif page == "Transactions":
         # Create a display label for each item
         def format_item_label(row):
             parts = [row['name']]
+            if 'color' in row and row['color']: parts.append(f"({row['color']})")
             if 'barcode' in row and row['barcode']: parts.append(str(row['barcode']))
-            if row['category']: parts.append(str(row['category']))
+            parts.append(f"Stock: {row['quantity']}")
             return " | ".join(parts)
 
         item_map = {}
@@ -412,59 +418,75 @@ elif page == "Transactions":
             auto_print = st.checkbox("Auto-Print Receipt", value=True)
             
         with col_chk_2:
-            col_cash, col_card = st.columns(2)
+            # Check the mode defined above
+            if mode == "Sale":
+                col_cash, col_card = st.columns(2)
+                
+                with col_cash:
+                    if st.button("💵 PAY CASH", type="primary", use_container_width=True):
+                        success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE", "CASH")
+                        
+                        if success:
+                            st.success("Cash Transaction Complete!")
+                            
+                            # Generate Receipt Content (No Auto-Print Script yet)
+                            receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print=False)
+                            
+                            # Store in session state for reprint (clean version)
+                            st.session_state["last_receipt"] = receipt_html
+                            
+                            # For immediate auto-print, we inject the script here
+                            if auto_print:
+                                receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                                st.session_state["actions_trigger_print"] = receipt_html_print
+                            else:
+                                 st.session_state["actions_trigger_print"] = None
+
+                            # Clear Cart
+                            st.session_state["cart"] = []
+                            st.rerun()
+                        else:
+                            st.error(f"Transaction Failed: {receipt_id}")
+
+                with col_card:
+                    if st.button("💳 PAY CARD", type="secondary", use_container_width=True):
+                        success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE", "CARD")
+                        
+                        if success:
+                            st.success("Card Transaction Recorded!")
+                            
+                            # Generate Receipt Content
+                            receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print=False)
+                            
+                            # Store clean version
+                            st.session_state["last_receipt"] = receipt_html
+                            
+                            # Trigger Auto-Print
+                            if auto_print:
+                                receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                                st.session_state["actions_trigger_print"] = receipt_html_print
+                            else:
+                                 st.session_state["actions_trigger_print"] = None
+                            
+                            # Clear Cart
+                            st.session_state["cart"] = []
+                            st.rerun()
+                        else:
+                            st.error(f"Transaction Failed: {receipt_id}")
             
-            with col_cash:
-                if st.button("💵 PAY CASH", type="primary", use_container_width=True):
-                    success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE", "CASH")
+            else: # Restock Mode
+                if st.button("📦 CONFIRM RESTOCK", type="primary", use_container_width=True):
+                    success, receipt_id = process_batch_transaction(st.session_state["cart"], "RESTOCK", "MANUAL")
                     
                     if success:
-                        st.success("Cash Transaction Complete!")
-                        
-                        # Generate Receipt Content (No Auto-Print Script yet)
-                        receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print=False)
-                        
-                        # Store in session state for reprint (clean version)
-                        st.session_state["last_receipt"] = receipt_html
-                        
-                        # For immediate auto-print, we inject the script here
-                        if auto_print:
-                            receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
-                            st.session_state["actions_trigger_print"] = receipt_html_print
-                        else:
-                             st.session_state["actions_trigger_print"] = None
-
-                        # Clear Cart
+                        st.success("Restock Complete! Inventory Updated.")
+                        # No receipt needed for restock usually, but we can generate one if they want.
+                        # For now, just clear cart.
                         st.session_state["cart"] = []
+                        time.sleep(1)
                         st.rerun()
                     else:
-                        st.error(f"Transaction Failed: {receipt_id}")
-
-            with col_card:
-                if st.button("💳 PAY CARD", type="secondary", use_container_width=True):
-                    success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE", "CARD")
-                    
-                    if success:
-                        st.success("Card Transaction Recorded!")
-                        
-                        # Generate Receipt Content
-                        receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print=False)
-                        
-                        # Store clean version
-                        st.session_state["last_receipt"] = receipt_html
-                        
-                        # Trigger Auto-Print
-                        if auto_print:
-                            receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
-                            st.session_state["actions_trigger_print"] = receipt_html_print
-                        else:
-                             st.session_state["actions_trigger_print"] = None
-                        
-                        # Clear Cart
-                        st.session_state["cart"] = []
-                        st.rerun()
-                    else:
-                        st.error(f"Transaction Failed: {receipt_id}")
+                        st.error(f"Restock Failed: {receipt_id}")
                     
         if st.button("Empty Cart (Cancel)"):
              st.session_state["cart"] = []
