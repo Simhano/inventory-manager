@@ -233,7 +233,13 @@ def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None, 
         }
         supabase.table("transactions").insert(data).execute()
     except Exception as e:
-        print(f"Failed to log transaction: {e}")
+        print(f"Failed to log transaction with payment_method: {e}")
+        # Fallback: Try without payment_method (in case DB schema isn't updated)
+        try:
+            del data["payment_method"]
+            supabase.table("transactions").insert(data).execute()
+        except Exception as e2:
+             print(f"Failed to log transaction (fallback): {e2}")
 
 def delete_item(item_id):
     """Delete item and its transactions."""
