@@ -415,7 +415,10 @@ elif page == "Transactions":
         col_chk_1, col_chk_2 = st.columns(2)
         
         with col_chk_1:
-            auto_print = st.checkbox("Auto-Print Receipt", value=True)
+            # Persist auto-print setting
+            if "auto_print_check" not in st.session_state:
+                st.session_state["auto_print_check"] = True
+            auto_print = st.checkbox("Auto-Print Receipt", value=st.session_state["auto_print_check"], key="auto_print_check_widget", on_change=lambda: st.session_state.update(auto_print_check=st.session_state.auto_print_check_widget))
             
         with col_chk_2:
             # Check the mode defined above
