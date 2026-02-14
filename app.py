@@ -404,14 +404,23 @@ elif page == "Transactions":
              else:
                  st.error(s_msg, icon="❌")
         
+        # Default State for Manual Inputs
+        if "pos_search" not in st.session_state: st.session_state.pos_search = None
+        if "pos_qty" not in st.session_state: st.session_state.pos_qty = 1
+        if "pos_note" not in st.session_state: st.session_state.pos_note = ""
+
         # --- Manual Search Section ---
         col_search, col_qty = st.columns([3, 1])
         
         with col_search:
-            selected_label = st.selectbox("Search Item (Manual)", options=list(item_map.keys()), index=None, placeholder="Type name or select...", key="pos_search")
+            # Note: Removed index=None where possible if session state handles it, 
+            # but for selectbox with placeholder, index=None is needed for initial render if state is empty.
+            # However, since we init state above, we can rely on state.
+            selected_label = st.selectbox("Search Item (Manual)", options=list(item_map.keys()), placeholder="Type name or select...", key="pos_search", index=None)
             
         with col_qty:
-            qty = st.number_input("Qty", min_value=1, value=1, key="pos_qty")
+            # Removed value=1 to avoid warning
+            qty = st.number_input("Qty", min_value=1, key="pos_qty")
             
         col_add, col_note = st.columns([1, 3])
         with col_note:
