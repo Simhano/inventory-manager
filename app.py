@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime
-from database import init_connection, add_item, update_stock, get_inventory_df, get_transactions_df, get_top_selling_items, delete_item, update_item_details, get_setting, set_setting
+from database import init_connection, add_item, update_stock, get_inventory_df, get_transactions_df, get_top_selling_items, delete_item, update_item_details, get_setting, set_setting, process_batch_transaction
 
 # Page Config
 st.set_page_config(page_title="Inventory Manager (Supabase)", layout="wide", page_icon="⚡")
@@ -12,6 +12,10 @@ try:
     init_connection()
 except Exception as e:
     st.error(f"Failed to connect to database: {e}")
+
+# Initialize Session State for Cart
+if "cart" not in st.session_state:
+    st.session_state["cart"] = []
 
 
 # --- UI Helpers ---
@@ -26,6 +30,67 @@ def style_dataframe(df):
     df = df.reset_index(drop=True)
     return df.style.apply(highlight_rows, axis=1)
 
+def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False):
+    """Generates a simple HTML receipt."""
+    date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    rows_html = ""
+    for item in cart_items:
+        rows_html += f"""
+        <tr>
+            <td>{item['name']}</td>
+            <td>{item['qty']}</td>
+            <td>${item['price']:.2f}</td>
+            <td>${item['qty'] * item['price']:.2f}</td>
+        </tr>
+        """
+        
+    auto_print_script = "<script>window.onload = function() { window.print(); }</script>" if auto_print else ""
+
+    html = f"""
+    <html>
+    <head>
+        <title>Receipt</title>
+        <style>
+            body {{ font-family: 'Courier New', monospace; width: 300px; margin: 0 auto; }}
+            .header, .footer {{ text-align: center; }}
+            table {{ width: 100%; border-collapse: collapse; }}
+            th, td {{ text-align: left; padding: 5px 0; }}
+            .right {{ text-align: right; }}
+            .divider {{ border-top: 1px dashed black; margin: 10px 0; }}
+        </style>
+        {auto_print_script}
+    </head>
+    <body>
+        <div class="header">
+            <h3>Inventory Store</h3>
+            <p>Receipt ID: {receipt_id[:8]}</p>
+            <p>{date_str}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <table>
+            <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+            {rows_html}
+        </table>
+        
+        <div class="divider"></div>
+        
+        <p class="right"><strong>TOTAL: ${total_amount:.2f}</strong></p>
+        
+        <div class="footer">
+            <p>Thank you for your business!</p>
+            <br><br>
+            <p>*** CUSTOMER COPY ***</p>
+            <br>
+            <p>*** MERCHANT COPY ***</p>
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
 # --- Authentication ---
 
 def check_global_password():
@@ -34,9 +99,11 @@ def check_global_password():
     correct_password = get_setting("global_password", "0000")
     
     def password_entered():
-        if st.session_state["global_password_input"] == correct_password:
+        # Use .get() to avoid KeyError if widget state is lost
+        entered = st.session_state.get("global_password_input", "")
+        if entered == correct_password:
             st.session_state["global_access_granted"] = True
-            del st.session_state["global_password_input"]
+            st.session_state["global_password_input"] = "" # Clear input instead of deleting
         else:
             st.session_state["global_access_granted"] = False
 
@@ -55,9 +122,10 @@ def check_admin_password():
     correct_password = get_setting("admin_password", "0000")
 
     def password_entered():
-        if st.session_state["admin_password_input"] == correct_password:
+        entered = st.session_state.get("admin_password_input", "")
+        if entered == correct_password:
             st.session_state["admin_access_granted"] = True
-            del st.session_state["admin_password_input"]
+            st.session_state["admin_password_input"] = ""
         else:
             st.session_state["admin_access_granted"] = False
 
@@ -243,69 +311,121 @@ elif page == "Inventory (Admin)":
         st.info("Inventory is empty.")
 
 elif page == "Transactions":
-    st.header("Record Transaction")
+    st.header("🛒 Point of Sale (POS)")
+
+    # 1. Search & Add to Cart
+    st.subheader("Add Item to Cart")
     
-    # Use full dataframe to get all properties for search
     df = get_inventory_df()
-    
     if df.empty:
-        st.warning("No items to transact.")
+        st.warning("No items in inventory.")
     else:
-        # Create a display label for each item that includes search terms
+        # Create a display label for each item
         def format_item_label(row):
             parts = [row['name']]
             if 'barcode' in row and row['barcode']: parts.append(str(row['barcode']))
             if row['category']: parts.append(str(row['category']))
             return " | ".join(parts)
 
-        # Map the formatted label back to the data we need
         item_map = {}
         for index, row in df.iterrows():
             label = format_item_label(row)
             item_map[label] = row
             
-        selected_label = st.selectbox("Search & Select Item (Name | Barcode | Category)", options=list(item_map.keys()), index=None, placeholder="Type to search or Scan Barcode...")
+        col_search, col_qty = st.columns([3, 1])
         
-        if selected_label:
-            row = item_map[selected_label]
-            item_id = int(row['id'])
-            current_qty = row['quantity']
-            item_price = row['price']
-            item_name = row['name']
+        with col_search:
+            selected_label = st.selectbox("Search Item", options=list(item_map.keys()), index=None, placeholder="Type to search or Scan Barcode...", key="pos_search")
             
-            st.info(f"Current Stock: **{current_qty}** | Price: **${item_price:.2f}**")
+        with col_qty:
+            qty = st.number_input("Qty", min_value=1, value=1, key="pos_qty")
             
-            tab1, tab2 = st.tabs(["Sell", "Restock"])
+        col_add, col_note = st.columns([1, 3])
+        with col_note:
+            note = st.text_input("Note (Optional)", placeholder="Customer Name / ID", key="pos_note")
             
-            with tab1:
-                with st.form("sell_form"):
-                    sell_qty = st.number_input("Quantity to Sell", min_value=1, value=1)
-                    sell_note = st.text_input("Note (Optional)", placeholder="e.g. Customer ID")
+        with col_add:
+            if st.button("Add to Cart", type="primary"):
+                if selected_label:
+                    row = item_map[selected_label]
                     
-                    if st.form_submit_button("Confirm Sale"):
-                        # Negative quantity for sale
-                        success, msg = update_stock(item_id, item_name, -sell_qty, 'SALE', sell_note)
-                        if success:
-                            st.success(f"Sold {sell_qty} of {item_name}!")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(msg)
+                    # check stock
+                    if row['quantity'] < qty:
+                        st.error(f"Not enough stock! (Available: {row['quantity']})")
+                    else:
+                        # Add to cart
+                        item_data = {
+                            "id": int(row['id']),
+                            "name": row['name'],
+                            "price": float(row['price']),
+                            "qty": qty,
+                            "note": note,
+                            "max_qty": int(row['quantity'])
+                        }
+                        st.session_state["cart"].append(item_data)
+                        st.success(f"Added {row['name']} to cart")
+                else:
+                    st.error("Please select an item first.")
 
-            with tab2:
-                with st.form("restock_form"):
-                    restock_qty = st.number_input("Quantity to Restock", min_value=1, value=10)
-                    restock_note = st.text_input("Note (Optional)", placeholder="e.g. Supplier Invoice #")
+    st.divider()
+
+    # 2. View Cart & Checkout
+    st.subheader("Shopping Cart")
+    
+    if st.session_state["cart"]:
+        cart_df = pd.DataFrame(st.session_state["cart"])
+        cart_df['Total'] = cart_df['price'] * cart_df['qty']
+        
+        # Display Cart Table (Custom HTML/Table for Actions is hard in pure Streamlit, using dataframe for display)
+        # We will add a "Clear Cart" button for simplicity instead of per-row delete for this version, 
+        # or use a Multiselect to remove items.
+        
+        st.dataframe(style_dataframe(cart_df[['name', 'qty', 'price', 'Total', 'note']]), use_container_width=True, hide_index=True)
+        
+        total_amount = cart_df['Total'].sum()
+        st.markdown(f"### Total: ${total_amount:,.2f}")
+        
+        # Remove Item Logic
+        item_to_remove = st.selectbox("Remove Item:", options=cart_df['name'].tolist(), index=None, placeholder="Select item to remove...")
+        if st.button("Remove Selected Item"):
+            if item_to_remove:
+                st.session_state["cart"] = [item for item in st.session_state["cart"] if item['name'] != item_to_remove]
+                st.rerun()
+        
+        st.divider()
+        
+        # Checkout Section
+        col_chk_1, col_chk_2 = st.columns(2)
+        
+        with col_chk_1:
+            auto_print = st.checkbox("Auto-Print Receipt", value=True)
+            
+        with col_chk_2:
+            if st.button("✅ COMPLETE TRANSACTION", type="primary", use_container_width=True):
+                success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE")
+                
+                if success:
+                    st.success("Transaction Complete!")
                     
-                    if st.form_submit_button("Confirm Restock"):
-                        # Positive quantity for restock
-                        success, msg = update_stock(item_id, item_name, restock_qty, 'RESTOCK', restock_note)
-                        if success:
-                            st.success(f"Restocked {restock_qty} of {item_name}!")
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(msg)
+                    # Generate Receipt
+                    receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print)
+                    
+                    # Clear Cart
+                    st.session_state["cart"] = []
+                    
+                    # Show Receipt (in expender or modal-like)
+                    with st.expander("📄 Receipt (Click to Print)", expanded=True):
+                         st.components.v1.html(receipt_html, height=600, scrolling=True)
+                    
+                else:
+                    st.error(f"Transaction Failed: {receipt_id}")
+                    
+        if st.button("Empty Cart (Cancel)"):
+             st.session_state["cart"] = []
+             st.rerun()
+            
+    else:
+        st.info("Cart is empty.")
 
 elif page == "History":
     st.header("Transaction History")

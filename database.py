@@ -192,6 +192,39 @@ def process_batch_transaction(cart_items, transaction_type="SALE"):
     except Exception as e:
         return False, str(e)
 
+def process_batch_transaction(cart_items, transaction_type="SALE"):
+    """
+    Process multiple items in a single transaction (Receipt).
+    cart_items: List of dicts {'id', 'name', 'qty', 'note'}
+    """
+    try:
+        receipt_id = str(uuid.uuid4())
+        errors = []
+        
+        for item in cart_items:
+            # Determine change amount (Negative for SALE)
+            change = -item['qty'] if transaction_type == "SALE" else item['qty']
+            
+            success, msg = update_stock(
+                item['id'], 
+                item['name'], 
+                change, 
+                transaction_type, 
+                item.get('note', ''), 
+                receipt_id
+            )
+            
+            if not success:
+                errors.append(f"Failed {item['name']}: {msg}")
+        
+        if errors:
+            return False, "Some items failed: " + "; ".join(errors)
+            
+        return True, receipt_id
+        
+    except Exception as e:
+        return False, str(e)
+
 def update_item_details(item_id, name, category, maker, supplier, color, barcode, price, min_threshold):
     try:
         # Treat empty barcode as None
