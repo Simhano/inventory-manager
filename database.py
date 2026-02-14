@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import uuid
 from supabase import create_client, Client
 
 # --- Configuration ---
@@ -71,7 +72,7 @@ def get_inventory_df():
         response = supabase.table("inventory").select("*").order("id").execute()
         data = response.data
         if not data:
-            return pd.DataFrame(columns=['id', 'name', 'category', 'maker', 'color', 'barcode', 'quantity', 'price', 'min_threshold'])
+            return pd.DataFrame(columns=['id', 'name', 'category', 'maker', 'supplier', 'color', 'barcode', 'quantity', 'price', 'min_threshold'])
         return pd.DataFrame(data)
     except Exception as e:
         st.error(f"Error fetching inventory: {e}")
@@ -83,7 +84,7 @@ def get_transactions_df(limit=100):
         response = supabase.table("transactions").select("*").order("timestamp", desc=True).limit(limit).execute()
         data = response.data
         if not data:
-            return pd.DataFrame(columns=['id', 'item_id', 'item_name', 'type', 'quantity', 'timestamp', 'note'])
+            return pd.DataFrame(columns=['id', 'item_id', 'item_name', 'type', 'quantity', 'timestamp', 'note', 'receipt_id'])
         return pd.DataFrame(data)
     except Exception as e:
         st.error(f"Error fetching transactions: {e}")
@@ -95,6 +96,11 @@ def add_item(name, category, maker, supplier, color, barcode, quantity, price, m
         # Treat empty barcode as None to avoid unique constraint violation on empty strings
         if not barcode:
             barcode = None
+            
+        # Enforce Uppercase for normalized fields
+        category = category.upper() if category else category
+        maker = maker.upper() if maker else maker
+        supplier = supplier.upper() if supplier else supplier
 
         # Check if item exists (by name or barcode)
         # Unique constraints on DB will handle this, but we can check nicely.
@@ -129,7 +135,7 @@ def add_item(name, category, maker, supplier, color, barcode, quantity, price, m
     except Exception as e:
         return False, str(e)
 
-def update_stock(item_id, item_name, change_amount, transaction_type, note=""):
+def update_stock(item_id, item_name, change_amount, transaction_type, note="", receipt_id=None):
     """Update stock level and log transaction."""
     try:
         # 1. Get current stock
@@ -141,15 +147,48 @@ def update_stock(item_id, item_name, change_amount, transaction_type, note=""):
         new_qty = current_qty + change_amount
         
         if new_qty < 0:
-            return False, "Insufficient stock."
+            return False, f"Insufficient stock for {item_name}."
             
         # 2. Update Inventory
         supabase.table("inventory").update({"quantity": new_qty}).eq("id", item_id).execute()
         
         # 3. Log Transaction
-        log_transaction(item_id, item_name, transaction_type, abs(change_amount), note)
+        log_transaction(item_id, item_name, transaction_type, abs(change_amount), note, receipt_id)
         
         return True, f"Stock updated. New Quantity: {new_qty}"
+    except Exception as e:
+        return False, str(e)
+
+def process_batch_transaction(cart_items, transaction_type="SALE"):
+    """
+    Process multiple items in a single transaction (Receipt).
+    cart_items: List of dicts {'id', 'name', 'qty', 'note'}
+    """
+    try:
+        receipt_id = str(uuid.uuid4())
+        errors = []
+        
+        for item in cart_items:
+            # Determine change amount (Negative for SALE)
+            change = -item['qty'] if transaction_type == "SALE" else item['qty']
+            
+            success, msg = update_stock(
+                item['id'], 
+                item['name'], 
+                change, 
+                transaction_type, 
+                item.get('note', ''), 
+                receipt_id
+            )
+            
+            if not success:
+                errors.append(f"Failed {item['name']}: {msg}")
+        
+        if errors:
+            return False, "Some items failed: " + "; ".join(errors)
+            
+        return True, receipt_id
+        
     except Exception as e:
         return False, str(e)
 
@@ -158,6 +197,11 @@ def update_item_details(item_id, name, category, maker, supplier, color, barcode
         # Treat empty barcode as None
         if not barcode:
             barcode = None
+            
+        # Enforce Uppercase
+        category = category.upper() if category else category
+        maker = maker.upper() if maker else maker
+        supplier = supplier.upper() if supplier else supplier
             
         data = {
             "name": name,
@@ -174,7 +218,7 @@ def update_item_details(item_id, name, category, maker, supplier, color, barcode
     except Exception as e:
         return False, str(e)
 
-def log_transaction(item_id, item_name, type_, quantity, note):
+def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None):
     try:
         data = {
             "item_id": item_id,
@@ -182,7 +226,8 @@ def log_transaction(item_id, item_name, type_, quantity, note):
             "type": type_,
             "quantity": quantity, # Always positive in log
             "note": note,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "receipt_id": receipt_id
         }
         supabase.table("transactions").insert(data).execute()
     except Exception as e:
@@ -249,5 +294,3 @@ def get_top_selling_items(period="week", limit=10):
     except Exception as e:
         print(f"Error getting top items: {e}")
         return pd.DataFrame()
-
-
