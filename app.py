@@ -93,9 +93,8 @@ def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False
     <body>
         {get_receipt_body("CUSTOMER COPY")}
         
-        <br>
-        <div class="cut-line">✂️ - - - - - - - - - - - - ✂️</div>
-        <br>
+        <!-- Page Break for Receipt Printer (Triggers Cut) -->
+        <div class="page-break"></div>
         
         {get_receipt_body("MERCHANT COPY")}
     </body>
