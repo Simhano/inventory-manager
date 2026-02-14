@@ -349,6 +349,7 @@ elif page == "Transactions":
         st.warning("No items in inventory.")
     else:
         # Create a display label for each item
+        # Create a display label for each item
         def format_item_label(row):
             parts = [row['name']]
             if 'color' in row and row['color']: parts.append(f"({row['color']})")
@@ -361,10 +362,53 @@ elif page == "Transactions":
             label = format_item_label(row)
             item_map[label] = row
             
+        # --- Quick Scan Section ---
+        def process_scan():
+            code = st.session_state.get("barcode_input", "").strip()
+            if code:
+                # Find item by barcode
+                # Ensure barcode column is string for comparison
+                matches = df[df['barcode'].astype(str) == code]
+                
+                if not matches.empty:
+                    row = matches.iloc[0]
+                    qty_to_add = 1
+                    
+                    # Validate Stock (if Sale)
+                    if mode == "Sale" and row['quantity'] < qty_to_add:
+                        st.session_state["scan_msg"] = (False, f"Not enough stock for {row['name']}! (Available: {row['quantity']})")
+                    else:
+                        # Add to Cart
+                        item_data = {
+                            "id": int(row['id']),
+                            "name": row['name'],
+                            "price": float(row['price']),
+                            "qty": qty_to_add,
+                            "note": "Scanned",
+                            "max_qty": int(row['quantity'])
+                        }
+                        st.session_state["cart"].append(item_data)
+                        st.session_state["scan_msg"] = (True, f"Added: {row['name']}")
+                else:
+                    st.session_state["scan_msg"] = (False, f"Barcode not found: {code}")
+            
+            # Clear input
+            st.session_state["barcode_input"] = ""
+
+        st.text_input("⚡ Quick Scan (Barcode)", key="barcode_input", on_change=process_scan, placeholder="Click here and scan item...", help="Scans add 1 unit automatically.")
+        
+        if "scan_msg" in st.session_state and st.session_state["scan_msg"]:
+             s_success, s_msg = st.session_state["scan_msg"]
+             if s_success:
+                 st.success(s_msg, icon="✅")
+             else:
+                 st.error(s_msg, icon="❌")
+        
+        # --- Manual Search Section ---
         col_search, col_qty = st.columns([3, 1])
         
         with col_search:
-            selected_label = st.selectbox("Search Item", options=list(item_map.keys()), index=None, placeholder="Type to search or Scan Barcode...", key="pos_search")
+            selected_label = st.selectbox("Search Item (Manual)", options=list(item_map.keys()), index=None, placeholder="Type name or select...", key="pos_search")
             
         with col_qty:
             qty = st.number_input("Qty", min_value=1, value=1, key="pos_qty")
@@ -393,6 +437,13 @@ elif page == "Transactions":
                         }
                         st.session_state["cart"].append(item_data)
                         st.success(f"Added {row['name']} to cart")
+                        
+                        # Clear Manual Search Inputs
+                        st.session_state["pos_search"] = None
+                        st.session_state["pos_qty"] = 1
+                        st.session_state["pos_note"] = ""
+                        time.sleep(0.5) # Short delay to show success message
+                        st.rerun()
                 else:
                     st.error("Please select an item first.")
 
