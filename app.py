@@ -418,34 +418,54 @@ elif page == "Transactions":
             note = st.text_input("Note (Optional)", placeholder="Customer Name / ID", key="pos_note")
             
         with col_add:
-            if st.button("Add to Cart", type="primary"):
-                if selected_label:
-                    row = item_map[selected_label]
-                    
-                    # check stock (Only relevant for Sales)
-                    if mode == "Sale" and row['quantity'] < qty:
-                        st.error(f"Not enough stock! (Available: {row['quantity']})")
-                    else:
-                        # Add to cart
-                        item_data = {
-                            "id": int(row['id']),
-                            "name": row['name'],
-                            "price": float(row['price']),
-                            "qty": qty,
-                            "note": note,
-                            "max_qty": int(row['quantity'])
-                        }
-                        st.session_state["cart"].append(item_data)
-                        st.success(f"Added {row['name']} to cart")
-                        
-                        # Clear Manual Search Inputs
-                        st.session_state["pos_search"] = None
-                        st.session_state["pos_qty"] = 1
-                        st.session_state["pos_note"] = ""
-                        time.sleep(0.5) # Short delay to show success message
-                        st.rerun()
-                else:
-                    st.error("Please select an item first.")
+            # Callback for manual Add
+            def add_manual_item(item_map, mode):
+                 key = st.session_state.get("pos_search")
+                 qty = st.session_state.get("pos_qty", 1)
+                 note = st.session_state.get("pos_note", "")
+                 
+                 if not key:
+                     st.session_state["manual_msg"] = (False, "Please select an item first.")
+                     return
+
+                 row = item_map.get(key)
+                 if row is None:
+                     return
+                     
+                 # Check Stock Logic
+                 if mode == "Sale" and row['quantity'] < qty:
+                      st.session_state["manual_msg"] = (False, f"Not enough stock! (Available: {row['quantity']})")
+                      return
+                 
+                 # Success
+                 item_data = {
+                     "id": int(row['id']),
+                     "name": row['name'],
+                     "price": float(row['price']),
+                     "qty": qty,
+                     "note": note,
+                     "max_qty": int(row['quantity'])
+                 }
+                 st.session_state["cart"].append(item_data)
+                 st.session_state["manual_msg"] = (True, f"Added {row['name']}")
+                 
+                 # Clear Inputs
+                 st.session_state["pos_search"] = None
+                 st.session_state["pos_qty"] = 1
+                 st.session_state["pos_note"] = ""
+
+            st.button("Add to Cart", type="primary", on_click=add_manual_item, args=(item_map, mode))
+            
+            # Display Message
+            if "manual_msg" in st.session_state and st.session_state["manual_msg"]:
+                 m_success, m_msg = st.session_state["manual_msg"]
+                 if m_success:
+                     st.success(m_msg)
+                     # Clear message after showing so it doesn't persist forever
+                     st.session_state["manual_msg"] = None
+                 else:
+                     st.error(m_msg)
+                     st.session_state["manual_msg"] = None
 
     st.divider()
 
