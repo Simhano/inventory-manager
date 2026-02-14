@@ -378,8 +378,8 @@ elif page == "Transactions":
                 if selected_label:
                     row = item_map[selected_label]
                     
-                    # check stock
-                    if row['quantity'] < qty:
+                    # check stock (Only relevant for Sales)
+                    if mode == "Sale" and row['quantity'] < qty:
                         st.error(f"Not enough stock! (Available: {row['quantity']})")
                     else:
                         # Add to cart
