@@ -415,6 +415,9 @@ elif page == "Transactions":
             col_cash, col_card = st.columns(2)
             
             with col_cash:
+                if st.button("💵 PAY CASH", type="primary", use_container_width=True):
+                    success, receipt_id = process_batch_transaction(st.session_state["cart"], "SALE", "CASH")
+                    
                     if success:
                         st.success("Cash Transaction Complete!")
                         
