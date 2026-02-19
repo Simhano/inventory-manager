@@ -278,27 +278,25 @@ if page == "📺 Customer View":
         </style>
     """, unsafe_allow_html=True)
     
-    st.title("🛒 Customer Display (v2.0)")
+    st.title("🛒 Customer Display (v2.1)")
     
     # Poll for live cart data
     cart_data = get_live_cart()
     
-    # Adaptive Polling: If data hasn't changed, sleep longer to reduce blinking
+    # Adaptive Polling
     if "last_cart_data" not in st.session_state:
         st.session_state["last_cart_data"] = {}
     
-    # Check for changes
     import json
-    # Use JSON dump for reliable comparison including nested structures
     current_hash = json.dumps(cart_data, sort_keys=True) if cart_data else ""
     last_hash = json.dumps(st.session_state["last_cart_data"], sort_keys=True) if st.session_state["last_cart_data"] else ""
     
     has_changed = current_hash != last_hash
     if has_changed:
         st.session_state["last_cart_data"] = cart_data
-        poll_interval = 2 # Fast update when activity detected
+        poll_interval = 2
     else:
-        poll_interval = 5 # Slow update when idle
+        poll_interval = 5
         
     if not cart_data or not cart_data.get("items"):
         st.markdown("<div style='text-align: center; margin-top: 100px;'>", unsafe_allow_html=True)
@@ -312,7 +310,6 @@ if page == "📺 Customer View":
         with st.container():
             st.markdown("---")
             for item in items:
-                # Re-calculate display details
                 name = item['name']
                 qty = item['qty']
                 price = item['price']
@@ -343,7 +340,7 @@ if page == "📺 Customer View":
                 
                 st.markdown("---")
 
-        # 2. Totals Container (Strictly Outside Loop)
+        # 2. Totals Container
         with st.container():
             subtotal = cart_data.get("subtotal", 0)
             discount = cart_data.get("discount", 0)
@@ -360,7 +357,7 @@ if page == "📺 Customer View":
 
     time.sleep(poll_interval)
     st.rerun()
-    st.stop() # Stop further execution for this page
+    st.stop()
 
 # --- POS Helper to Sync ---
 
@@ -388,9 +385,9 @@ elif page == "Dashboard":
             st.success("All stock levels are healthy.")
             
         # Recent Activity (Mini)
-        st.subheader("Recent Activity")
-        trans_df = get_transactions_df(limit=5)
-        st.dataframe(style_dataframe(trans_df), hide_index=True)
+        # st.subheader("Recent Activity")
+        # trans_df = get_transactions_df(limit=5)
+        # st.dataframe(style_dataframe(trans_df), hide_index=True)
 
 
     else:
