@@ -375,25 +375,7 @@ elif page == "Dashboard":
         trans_df = get_transactions_df(limit=5)
         st.dataframe(style_dataframe(trans_df), hide_index=True)
 
-        # Top Selling Items
-        st.subheader("🏆 Top Selling Items")
-        tab_week, tab_month = st.tabs(["This Week", "This Month"])
-        
-        with tab_week:
-            top_week = get_top_selling_items("week", 10)
-            if not top_week.empty:
-                st.bar_chart(top_week, x="Item Name", y="Total Sold")
-                st.dataframe(style_dataframe(top_week), hide_index=True)
-            else:
-                st.info("No sales this week.")
-                
-        with tab_month:
-            top_month = get_top_selling_items("month", 10)
-            if not top_month.empty:
-                st.bar_chart(top_month, x="Item Name", y="Total Sold")
-                st.dataframe(style_dataframe(top_month), hide_index=True)
-            else:
-                st.info("No sales this month.")
+
     else:
         st.info("No items in inventory.")
 
