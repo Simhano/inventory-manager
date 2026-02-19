@@ -53,7 +53,9 @@ def calculate_cart_totals(cart_items, checkout_discount_pct=0):
 # --- POS Helper to Sync ---
 def sync_cart():
     if "cart" in st.session_state:
-        sub, disc_amt, final = calculate_cart_totals(st.session_state["cart"], st.session_state.get("checkout_discount", 0))
+        # Defaults to 0 if not set
+        disc_val = st.session_state.get("checkout_discount", 0) 
+        sub, disc_amt, final = calculate_cart_totals(st.session_state["cart"], disc_val)
         cart_data = {
             "items": st.session_state["cart"],
             "subtotal": sub,
@@ -281,6 +283,23 @@ if page == "📺 Customer View":
     # Poll for live cart data
     cart_data = get_live_cart()
     
+    # Adaptive Polling: If data hasn't changed, sleep longer to reduce blinking
+    if "last_cart_data" not in st.session_state:
+        st.session_state["last_cart_data"] = {}
+    
+    # Check for changes
+    import json
+    # Use JSON dump for reliable comparison including nested structures
+    current_hash = json.dumps(cart_data, sort_keys=True) if cart_data else ""
+    last_hash = json.dumps(st.session_state["last_cart_data"], sort_keys=True) if st.session_state["last_cart_data"] else ""
+    
+    has_changed = current_hash != last_hash
+    if has_changed:
+        st.session_state["last_cart_data"] = cart_data
+        poll_interval = 2 # Fast update when activity detected
+    else:
+        poll_interval = 5 # Slow update when idle
+        
     if not cart_data or not cart_data.get("items"):
         st.markdown("<div style='text-align: center; margin-top: 100px;'>", unsafe_allow_html=True)
         st.info("👋 Welcome! Items will appear here.", icon="🛒")
@@ -341,7 +360,7 @@ if page == "📺 Customer View":
             st.markdown(f"<div class='total-amt'>${total:.2f}</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
-    time.sleep(2)
+    time.sleep(poll_interval)
     st.rerun()
     st.stop() # Stop further execution for this page
 
