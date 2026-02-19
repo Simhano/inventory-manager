@@ -242,7 +242,7 @@ page = st.sidebar.selectbox("Navigate", menu)
 if page == "📺 Customer View":
     st.markdown("""
         <style>
-            [data-testid="stSidebar"] {display: none;}
+            [data-testid="stSidebar"], [data-testid="stHeader"], footer {display: none;}
             
             /* Large Fonts */
             .cust-item-name { font-size: 2.2rem !important; font-weight: bold; color: #333; }
