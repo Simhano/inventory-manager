@@ -328,3 +328,34 @@ def get_top_selling_items(period="week", limit=10):
     except Exception as e:
         print(f"Error getting top items: {e}")
         return pd.DataFrame()
+
+# --- Customer Display / Realtime Sync ---
+def update_live_cart(cart_data):
+    try:
+        import json
+        json_str = json.dumps(cart_data)
+        # Reuse existing set_setting function
+        supabase.table('system_settings').upsert({'key': 'live_cart_data', 'value': json_str}).execute()
+        return True
+    except Exception as e:
+        print(f'Failed to update live cart: {e}')
+        return False
+
+def get_live_cart():
+    try:
+        import json
+        res = supabase.table('system_settings').select('value').eq('key', 'live_cart_data').single().execute()
+        if not res.data:
+            return None
+        val = res.data['value']
+        if not val:
+            return None
+        return json.loads(val)
+    except Exception as e:
+        print(f'Failed to get live cart: {e}')
+        return None
+
+def clear_live_cart():
+    empty_cart = {'items': [], 'subtotal': 0, 'discount': 0, 'total': 0}
+    update_live_cart(empty_cart)
+

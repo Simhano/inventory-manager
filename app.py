@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import math
 from datetime import datetime
-from database import init_connection, add_item, update_stock, get_inventory_df, get_transactions_df, get_top_selling_items, delete_item, update_item_details, get_setting, set_setting, process_batch_transaction
+from database import init_connection, add_item, update_stock, get_inventory_df, get_transactions_df, get_top_selling_items, delete_item, update_item_details, get_setting, set_setting, process_batch_transaction, update_live_cart, get_live_cart, clear_live_cart
 
 # Page Config
 st.set_page_config(page_title="Inventory Manager (Supabase)", layout="wide", page_icon="⚡")
@@ -236,8 +236,78 @@ if st.sidebar.button("Exit App (Logout)"):
     st.rerun()
 
 # Sidebar Navigation
-page = st.sidebar.selectbox("Navigation", ["Dashboard", "Transactions", "History", "Inventory (Admin)", "Settings (Admin)"])
+menu = ["Dashboard", "Transactions", "History", "Inventory (Admin)", "Settings (Admin)", "📺 Customer View"]
+page = st.sidebar.selectbox("Navigate", menu)
 
+if page == "📺 Customer View":
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {display: none;}
+            .big-font { font-size: 3rem !important; font-weight: bold; }
+            .med-font { font-size: 1.5rem !important; }
+            .total-box { 
+                background-color: #f0f2f6; 
+                padding: 20px; 
+                border-radius: 10px; 
+                text-align: right; 
+                margin-top: 20px;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.title("🛒 Customer Display")
+    
+    # Poll for live cart data
+    cart_data = get_live_cart()
+    
+    if not cart_data or not cart_data.get("items"):
+        st.info("Welcome! Please wait for your items...", icon="👋")
+        st.markdown("---")
+        st.markdown("### Thank you for shopping with us!")
+    else:
+        # Show Items
+        items = cart_data.get("items", [])
+        
+        # Simple table
+        st.markdown("### Your Items")
+        for item in items:
+            cols = st.columns([3, 1, 1])
+            cols[0].markdown(f"**{item['name']}**")
+            cols[1].markdown(f"x{item['qty']}")
+            # Calculate price for display (approx)
+            cols[2].markdown(f"${item['price'] * item['qty']:.2f}")
+            
+        st.divider()
+        
+        # Totals
+        subtotal = cart_data.get("subtotal", 0)
+        discount = cart_data.get("discount", 0)
+        total = cart_data.get("total", 0)
+        
+        col_t1, col_t2 = st.columns([2, 1])
+        with col_t2:
+            st.markdown(f"**Subtotal:** ${subtotal:.2f}")
+            if discount > 0:
+                st.markdown(f"**Discount:** -${discount:.2f}")
+            st.markdown(f"<div class='total-box'><div class='big-font'>${total:.2f}</div></div>", unsafe_allow_html=True)
+
+    time.sleep(2)
+    st.rerun()
+    st.stop() # Stop further execution for this page
+
+# --- POS Helper to Sync ---
+def sync_cart():
+    if "cart" in st.session_state:
+        sub, disc_amt, final = calculate_cart_totals(st.session_state["cart"], st.session_state.get("checkout_discount", 0))
+        cart_data = {
+            "items": st.session_state["cart"],
+            "subtotal": sub,
+            "discount": disc_amt,
+            "total": final
+        }
+        update_live_cart(cart_data)
+
+# --- Page Routing ---
 if page == "Dashboard":
     st.header("Dashboard")
     df = get_inventory_df()
@@ -495,6 +565,7 @@ elif page == "Transactions":
                             "bogo": bool(row.get('bogo', False))
                         }
                         add_to_cart_consolidated(item_data)
+                        sync_cart() # Sync to Customer Display
                         st.session_state["scan_msg"] = (True, f"Added: {row['name']}")
                 else:
                     st.session_state["scan_msg"] = (False, f"Barcode not found: {code}")
@@ -560,6 +631,7 @@ elif page == "Transactions":
                      "bogo": bool(row.get('bogo', False))
                  }
                  add_to_cart_consolidated(item_data)
+                 sync_cart() # Sync to Customer Display
                  st.session_state["manual_msg"] = (True, f"Added {row['name']}")
                  
                  # Clear Inputs
@@ -603,8 +675,7 @@ elif page == "Transactions":
             if sale_pct and sale_pct > 0:
                 promo += f"🔥-{sale_pct}% "
             if bogo and qty >= 2:
-                free_qty = qty - paid_qty
-                promo += f"🎁{free_qty} FREE "
+                promo += f"🎁{qty - paid_qty} FREE "
             
             display_rows.append({
                 "Name": item['name'],
@@ -627,7 +698,7 @@ elif page == "Transactions":
         
         col_discount, col_total = st.columns([1, 2])
         with col_discount:
-            checkout_discount_pct = st.number_input("🏷️ Checkout Discount %", min_value=0, max_value=50, key="checkout_discount", help="Apply an additional discount to the entire purchase")
+            checkout_discount_pct = st.number_input("🏷️ Checkout Discount %", min_value=0, max_value=50, key="checkout_discount", help="Apply an additional discount to the entire purchase", on_change=sync_cart)
         
         # Calculate totals
         subtotal, discount_amount, final_total = calculate_cart_totals(st.session_state["cart"], checkout_discount_pct)
@@ -642,7 +713,8 @@ elif page == "Transactions":
         item_to_remove = st.selectbox("Remove Item:", options=cart_df['name'].tolist(), index=None, placeholder="Select item to remove...")
         if st.button("Remove Selected Item"):
             if item_to_remove:
-                st.session_state["cart"] = [item for item in st.session_state["cart"] if item['name'] != item_to_remove]
+                st.session_state["cart"] = [i for i in st.session_state["cart"] if i['name'] != item_to_remove]
+                sync_cart() # Sync to Customer Display
                 st.rerun()
         
         st.divider()
@@ -679,7 +751,7 @@ elif page == "Transactions":
                                 st.session_state["last_receipt"] = receipt_html
                                 
                                 if auto_print:
-                                    receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                                    receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</head>")
                                     st.session_state["actions_trigger_print"] = receipt_html_print
                                 else:
                                      st.session_state["actions_trigger_print"] = None
@@ -689,6 +761,7 @@ elif page == "Transactions":
 
                             st.session_state["cart"] = []
                             st.session_state["_reset_discount"] = True
+                            clear_live_cart() # Clear Customer Display
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -705,7 +778,7 @@ elif page == "Transactions":
                                 st.session_state["last_receipt"] = receipt_html
                                 
                                 if auto_print:
-                                    receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                                    receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</head>")
                                     st.session_state["actions_trigger_print"] = receipt_html_print
                                 else:
                                      st.session_state["actions_trigger_print"] = None
@@ -715,6 +788,7 @@ elif page == "Transactions":
                             
                             st.session_state["cart"] = []
                             st.session_state["_reset_discount"] = True
+                            clear_live_cart() # Clear Customer Display
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -727,6 +801,7 @@ elif page == "Transactions":
                         st.success("Restock Complete! Inventory Updated.")
                         st.session_state["cart"] = []
                         st.session_state["_reset_discount"] = True
+                        clear_live_cart() # Clear Customer Display
                         time.sleep(1)
                         st.rerun()
                     else:
@@ -735,6 +810,7 @@ elif page == "Transactions":
         if st.button("Empty Cart (Cancel)"):
              st.session_state["cart"] = []
              st.session_state["_reset_discount"] = True
+             clear_live_cart() # Clear Customer Display
              st.rerun()
              
     # Handle Auto-Print Trigger (Immediate)
