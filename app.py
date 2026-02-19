@@ -243,15 +243,23 @@ if page == "📺 Customer View":
     st.markdown("""
         <style>
             [data-testid="stSidebar"] {display: none;}
-            .big-font { font-size: 3rem !important; font-weight: bold; }
-            .med-font { font-size: 1.5rem !important; }
+            
+            /* Large Fonts */
+            .cust-item-name { font-size: 2.2rem !important; font-weight: bold; color: #333; }
+            .cust-item-detail { font-size: 1.8rem !important; color: #555; }
+            .cust-promo { font-size: 1.4rem !important; color: #d9534f; font-weight: bold; }
+            
+            /* Totals Box */
             .total-box { 
-                background-color: #f0f2f6; 
-                padding: 20px; 
-                border-radius: 10px; 
+                background-color: #d1ecf1; 
+                padding: 30px; 
+                border-radius: 15px; 
                 text-align: right; 
-                margin-top: 20px;
+                margin-top: 30px;
+                border: 2px solid #bee5eb;
             }
+            .total-label { font-size: 1.8rem !important; color: #0c5460; }
+            .total-amt { font-size: 4rem !important; font-weight: 800; color: #000; }
         </style>
     """, unsafe_allow_html=True)
     
@@ -261,35 +269,64 @@ if page == "📺 Customer View":
     cart_data = get_live_cart()
     
     if not cart_data or not cart_data.get("items"):
-        st.info("Welcome! Please wait for your items...", icon="👋")
-        st.markdown("---")
-        st.markdown("### Thank you for shopping with us!")
+        st.markdown("<div style='text-align: center; margin-top: 100px;'>", unsafe_allow_html=True)
+        st.info("👋 Welcome! Items will appear here.", icon="�")
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
         # Show Items
         items = cart_data.get("items", [])
         
-        # Simple table
-        st.markdown("### Your Items")
-        for item in items:
-            cols = st.columns([3, 1, 1])
-            cols[0].markdown(f"**{item['name']}**")
-            cols[1].markdown(f"x{item['qty']}")
-            # Calculate price for display (approx)
-            cols[2].markdown(f"${item['price'] * item['qty']:.2f}")
-            
-        st.divider()
+        st.markdown("---")
         
+        for item in items:
+            # Re-calculate display details (logic shared with Cashier view)
+            name = item['name']
+            qty = item['qty']
+            price = item['price']
+            sale_pct = item.get('sale_percent', 0)
+            bogo = item.get('bogo', False)
+            
+            # Effective Price Calculation
+            eff_price = price * (1 - sale_pct/100)
+            
+            # Promo String
+            promos = []
+            if sale_pct > 0:
+                promos.append(f"🔥 -{sale_pct}% OFF")
+            if bogo and qty >= 2:
+                paid = get_bogo_paid_qty(qty, bogo) # Need helper or recalc
+                free_qty = qty - paid
+                promos.append(f"🎁 {free_qty} FREE (BOGO)")
+            
+            promo_text = "  ".join(promos)
+            
+            # Display Row
+            cols = st.columns([4, 2, 2])
+            with cols[0]:
+                 st.markdown(f"<div class='cust-item-name'>{name}</div>", unsafe_allow_html=True)
+                 if promo_text:
+                     st.markdown(f"<div class='cust-promo'>{promo_text}</div>", unsafe_allow_html=True)
+            with cols[1]:
+                 st.markdown(f"<div class='cust-item-detail'>x{qty}</div>", unsafe_allow_html=True)
+            with cols[2]:
+                 item_total = eff_price * get_bogo_paid_qty(qty, bogo)
+                 st.markdown(f"<div class='cust-item-detail'>${item_total:.2f}</div>", unsafe_allow_html=True)
+            
+            st.markdown("---")
+            
         # Totals
         subtotal = cart_data.get("subtotal", 0)
         discount = cart_data.get("discount", 0)
         total = cart_data.get("total", 0)
         
-        col_t1, col_t2 = st.columns([2, 1])
+        col_t1, col_t2 = st.columns([1, 1])
         with col_t2:
-            st.markdown(f"**Subtotal:** ${subtotal:.2f}")
+            st.markdown(f"<div class='total-box'>", unsafe_allow_html=True)
+            st.markdown(f"<div class='total-label'>Subtotal: ${subtotal:.2f}</div>", unsafe_allow_html=True)
             if discount > 0:
-                st.markdown(f"**Discount:** -${discount:.2f}")
-            st.markdown(f"<div class='total-box'><div class='big-font'>${total:.2f}</div></div>", unsafe_allow_html=True)
+                 st.markdown(f"<div class='total-label' style='color: #d9534f;'>Discount: -${discount:.2f}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='total-amt'>${total:.2f}</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
     time.sleep(2)
     st.rerun()
