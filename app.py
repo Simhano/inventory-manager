@@ -308,57 +308,55 @@ if page == "📺 Customer View":
         # Show Items
         items = cart_data.get("items", [])
         
-        st.markdown("---")
-        
-        for item in items:
-            # Re-calculate display details (logic shared with Cashier view)
-            name = item['name']
-            qty = item['qty']
-            price = item['price']
-            sale_pct = item.get('sale_percent', 0)
-            bogo = item.get('bogo', False)
-            
-            # Helper logic duplicated from Cashier view for simplicity
-            eff_price = price * (1 - sale_pct/100)
-            
-            promos = []
-            if sale_pct > 0:
-                promos.append(f"🔥 -{sale_pct}% OFF")
-            
-            if bogo:
-                paid = get_bogo_paid_qty(qty, bogo) 
-                free_qty = qty - paid
-                promos.append(f"🎁 {free_qty} FREE (BOGO)")
-            
-            promo_text = "  ".join(promos)
-            
-            # Display Row
-            cols = st.columns([4, 2, 2])
-            with cols[0]:
-                 st.markdown(f"<div class='cust-item-name'>{name}</div>", unsafe_allow_html=True)
-                 if promo_text:
-                     st.markdown(f"<div class='cust-promo'>{promo_text}</div>", unsafe_allow_html=True)
-            with cols[1]:
-                 st.markdown(f"<div class='cust-item-detail'>x{qty}</div>", unsafe_allow_html=True)
-            with cols[2]:
-                 item_total = eff_price * get_bogo_paid_qty(qty, bogo)
-                 st.markdown(f"<div class='cust-item-detail'>${item_total:.2f}</div>", unsafe_allow_html=True)
-            
+        # 1. Items Container
+        with st.container():
             st.markdown("---")
+            for item in items:
+                # Re-calculate display details
+                name = item['name']
+                qty = item['qty']
+                price = item['price']
+                sale_pct = item.get('sale_percent', 0)
+                bogo = item.get('bogo', False)
+                eff_price = price * (1 - sale_pct/100)
+                
+                promos = []
+                if sale_pct > 0:
+                    promos.append(f"🔥 -{sale_pct}% OFF")
+                if bogo:
+                    paid = get_bogo_paid_qty(qty, bogo) 
+                    free_qty = qty - paid
+                    promos.append(f"🎁 {free_qty} FREE (BOGO)")
+                
+                promo_text = "  ".join(promos)
+                
+                cols = st.columns([4, 2, 2])
+                with cols[0]:
+                     st.markdown(f"<div class='cust-item-name'>{name}</div>", unsafe_allow_html=True)
+                     if promo_text:
+                         st.markdown(f"<div class='cust-promo'>{promo_text}</div>", unsafe_allow_html=True)
+                with cols[1]:
+                     st.markdown(f"<div class='cust-item-detail'>x{qty}</div>", unsafe_allow_html=True)
+                with cols[2]:
+                     item_total = eff_price * get_bogo_paid_qty(qty, bogo)
+                     st.markdown(f"<div class='cust-item-detail'>${item_total:.2f}</div>", unsafe_allow_html=True)
+                
+                st.markdown("---")
+
+        # 2. Totals Container (Strictly Outside Loop)
+        with st.container():
+            subtotal = cart_data.get("subtotal", 0)
+            discount = cart_data.get("discount", 0)
+            total = cart_data.get("total", 0)
             
-        # Totals (MOVED OUTSIDE LOOP)
-        subtotal = cart_data.get("subtotal", 0)
-        discount = cart_data.get("discount", 0)
-        total = cart_data.get("total", 0)
-        
-        col_t1, col_t2 = st.columns([1, 1])
-        with col_t2:
-            st.markdown(f"<div class='total-box'>", unsafe_allow_html=True)
-            st.markdown(f"<div class='total-label'>Subtotal: ${subtotal:.2f}</div>", unsafe_allow_html=True)
-            if discount > 0:
-                 st.markdown(f"<div class='total-label' style='color: #d9534f;'>Discount: -${discount:.2f}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='total-amt'>${total:.2f}</div>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            col_t1, col_t2 = st.columns([1, 1])
+            with col_t2:
+                st.markdown(f"<div class='total-box'>", unsafe_allow_html=True)
+                st.markdown(f"<div class='total-label'>Subtotal: ${subtotal:.2f}</div>", unsafe_allow_html=True)
+                if discount > 0:
+                     st.markdown(f"<div class='total-label' style='color: #d9534f;'>Discount: -${discount:.2f}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='total-amt'>${total:.2f}</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
     time.sleep(poll_interval)
     st.rerun()
