@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import math
 from datetime import datetime
-from database import init_connection, add_item, update_stock, get_inventory_df, get_transactions_df, get_top_selling_items, delete_item, update_item_details, get_setting, set_setting, process_batch_transaction, update_live_cart, get_live_cart, clear_live_cart
+from backend import init_connection, add_item, update_stock, get_inventory_df, get_transactions_df, get_top_selling_items, delete_item, update_item_details, get_setting, set_setting, process_batch_transaction, update_live_cart, get_live_cart, clear_live_cart
 
 # Page Config
 st.set_page_config(page_title="Inventory Manager (Supabase)", layout="wide", page_icon="⚡")
