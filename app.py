@@ -785,7 +785,7 @@ elif page == "Transactions":
                             st.session_state["cart"] = []
                             st.session_state["_reset_discount"] = True
                             sync_cart() # Sync empty cart to Customer Display
-                            time.sleep(0.1) # Ensure sync completes
+                            time.sleep(1.0) # WAIT for DB sync!
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -813,7 +813,7 @@ elif page == "Transactions":
                             st.session_state["cart"] = []
                             st.session_state["_reset_discount"] = True
                             sync_cart() # Sync empty cart to Customer Display
-                            time.sleep(0.1) # Ensure sync completes
+                            time.sleep(1.0) # WAIT for DB sync!
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -827,7 +827,7 @@ elif page == "Transactions":
                         st.session_state["cart"] = []
                         st.session_state["_reset_discount"] = True
                         sync_cart() # Clear Customer Display
-                        time.sleep(0.1)
+                        time.sleep(1.0) # WAIT for DB sync!
                         st.rerun()
                     else:
                         st.error(f"Restock Failed: {receipt_id}")
@@ -836,7 +836,7 @@ elif page == "Transactions":
              st.session_state["cart"] = []
              st.session_state["_reset_discount"] = True
              sync_cart() # Clear Customer Display
-             time.sleep(0.1)
+             time.sleep(1.0) # WAIT for DB sync!
              st.rerun()
              
     # Handle Auto-Print Trigger (Immediate)
