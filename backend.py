@@ -113,13 +113,24 @@ def get_inventory_df():
 
 @retry_db(max_retries=3)
 def get_transactions_df(limit=100):
-    """Fetch recent transactions."""
+    """Fetch recent transactions and convert timestamps to Eastern Time."""
     try:
         response = supabase.table("transactions").select("*").order("timestamp", desc=True).limit(limit).execute()
         data = response.data
         if not data:
             return pd.DataFrame(columns=['id', 'item_id', 'item_name', 'type', 'quantity', 'timestamp', 'note', 'receipt_id', 'payment_method'])
-        return pd.DataFrame(data)
+        
+        df = pd.DataFrame(data)
+        
+        # Convert UTC timestamp strings to Eastern Time for display
+        if 'timestamp' in df.columns:
+            try:
+                # Use pandas to handle UTC -> Eastern conversion
+                df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True).dt.tz_convert('US/Eastern').dt.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception as e:
+                print(f"Timezone conversion failed: {e}")
+                
+        return df
     except Exception as e:
         st.error(f"Error fetching transactions: {e}")
         return pd.DataFrame()
