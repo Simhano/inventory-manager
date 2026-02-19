@@ -3,7 +3,12 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import uuid
+import pytz
 from supabase import create_client, Client
+
+def get_eastern_time():
+    """Returns current time in US/Eastern timezone."""
+    return datetime.now(pytz.timezone('US/Eastern'))
 
 # --- Configuration ---
 # Load from Streamlit Secrets (safe for GitHub)
@@ -272,7 +277,7 @@ def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None, 
             "type": type_,
             "quantity": quantity, # Always positive in log
             "note": note,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": get_eastern_time().isoformat(),
             "receipt_id": receipt_id,
             "payment_method": payment_method
         }
@@ -310,11 +315,11 @@ def get_top_selling_items(period="week", limit=10):
     """
     try:
         if period == "week":
-            start_date = (datetime.now() - timedelta(days=7)).isoformat()
+            start_date = (get_eastern_time() - timedelta(days=7)).isoformat()
         elif period == "month":
-            start_date = (datetime.now() - timedelta(days=30)).isoformat()
+            start_date = (get_eastern_time() - timedelta(days=30)).isoformat()
         else:
-            start_date = (datetime.now() - timedelta(days=3650)).isoformat()
+            start_date = (get_eastern_time() - timedelta(days=3650)).isoformat()
 
         # Fetch sales
         # To do this efficiently in Supabase/PostgREST without a stored proc is tricky for aggregation.
