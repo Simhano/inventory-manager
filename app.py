@@ -628,6 +628,15 @@ elif page == "Transactions":
         if "pos_qty" not in st.session_state: st.session_state.pos_qty = 1
         if "pos_note" not in st.session_state: st.session_state.pos_note = ""
 
+        # --- Manual Reset for Customer Display ---
+        with st.sidebar:
+            st.divider()
+            if st.button("🔄 Force Reset Customer Display", type="secondary"):
+                 sync_cart()
+                 time.sleep(1.0)
+                 st.rerun()
+
+
         # --- Manual Search Section ---
         col_search, col_qty = st.columns([3, 1])
         
