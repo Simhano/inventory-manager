@@ -627,8 +627,24 @@ elif page == "Transactions":
             st.divider()
             if st.button("🔄 Force Reset Customer Display", type="secondary"):
                  sync_cart()
+                 st.toast("🔄 Customer Display Reset!")
                  time.sleep(0.2)
                  st.rerun()
+            
+            # Auto-Sync Heartbeat (5s)
+            if hasattr(st, "fragment"):
+                @st.fragment(run_every=5)
+                def auto_sync_heartbeat():
+                    sync_cart()
+                auto_sync_heartbeat()
+            else:
+                # Fallback: Lazy sync on interaction
+                if "last_auto_sync" not in st.session_state:
+                    st.session_state.last_auto_sync = 0
+                
+                if time.time() - st.session_state.last_auto_sync > 5:
+                    sync_cart()
+                    st.session_state.last_auto_sync = time.time()
 
 
         # --- Manual Search Section ---
