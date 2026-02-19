@@ -294,9 +294,9 @@ if page == "📺 Customer View":
     has_changed = current_hash != last_hash
     if has_changed:
         st.session_state["last_cart_data"] = cart_data
-        poll_interval = 2
+        poll_interval = 1 # Active: Fast updates
     else:
-        poll_interval = 5
+        poll_interval = 2 # Idle: Fast check for resets
         
     # Main visual container for atomic updates
     main_placeholder = st.empty()
@@ -310,52 +310,57 @@ if page == "📺 Customer View":
             # Show Items
             items = cart_data.get("items", [])
             
-            # Items Logic
-            st.markdown("---")
-            for item in items:
-                name = item['name']
-                qty = item['qty']
-                price = item['price']
-                sale_pct = item.get('sale_percent', 0)
-                bogo = item.get('bogo', False)
-                eff_price = price * (1 - sale_pct/100)
-                
-                promos = []
-                if sale_pct > 0:
-                    promos.append(f"🔥 -{sale_pct}% OFF")
-                if bogo:
-                    paid = get_bogo_paid_qty(qty, bogo) 
-                    free_qty = qty - paid
-                    promos.append(f"🎁 {free_qty} FREE (BOGO)")
-                
-                promo_text = "  ".join(promos)
-                
-                cols = st.columns([4, 2, 2])
-                with cols[0]:
-                     st.markdown(f"<div class='cust-item-name'>{name}</div>", unsafe_allow_html=True)
-                     if promo_text:
-                         st.markdown(f"<div class='cust-promo'>{promo_text}</div>", unsafe_allow_html=True)
-                with cols[1]:
-                     st.markdown(f"<div class='cust-item-detail'>x{qty}</div>", unsafe_allow_html=True)
-                with cols[2]:
-                     item_total = eff_price * get_bogo_paid_qty(qty, bogo)
-                     st.markdown(f"<div class='cust-item-detail'>${item_total:.2f}</div>", unsafe_allow_html=True)
-                
-                st.markdown("---")
-
-            # Totals Logic
-            subtotal = cart_data.get("subtotal", 0)
-            discount = cart_data.get("discount", 0)
-            total = cart_data.get("total", 0)
+            # Explicit Containers for DOM separation
+            items_container = st.container()
+            totals_container = st.container()
             
-            col_t1, col_t2 = st.columns([1, 1])
-            with col_t2:
-                st.markdown(f"<div class='total-box'>", unsafe_allow_html=True)
-                st.markdown(f"<div class='total-label'>Subtotal: ${subtotal:.2f}</div>", unsafe_allow_html=True)
-                if discount > 0:
-                     st.markdown(f"<div class='total-label' style='color: #d9534f;'>Discount: -${discount:.2f}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='total-amt'>${total:.2f}</div>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+            with items_container:
+                st.markdown("---")
+                for item in items:
+                    name = item['name']
+                    qty = item['qty']
+                    price = item['price']
+                    sale_pct = item.get('sale_percent', 0)
+                    bogo = item.get('bogo', False)
+                    eff_price = price * (1 - sale_pct/100)
+                    
+                    promos = []
+                    if sale_pct > 0:
+                        promos.append(f"🔥 -{sale_pct}% OFF")
+                    if bogo:
+                        paid = get_bogo_paid_qty(qty, bogo) 
+                        free_qty = qty - paid
+                        promos.append(f"🎁 {free_qty} FREE (BOGO)")
+                    
+                    promo_text = "  ".join(promos)
+                    
+                    cols = st.columns([4, 2, 2])
+                    with cols[0]:
+                         st.markdown(f"<div class='cust-item-name'>{name}</div>", unsafe_allow_html=True)
+                         if promo_text:
+                             st.markdown(f"<div class='cust-promo'>{promo_text}</div>", unsafe_allow_html=True)
+                    with cols[1]:
+                         st.markdown(f"<div class='cust-item-detail'>x{qty}</div>", unsafe_allow_html=True)
+                    with cols[2]:
+                         item_total = eff_price * get_bogo_paid_qty(qty, bogo)
+                         st.markdown(f"<div class='cust-item-detail'>${item_total:.2f}</div>", unsafe_allow_html=True)
+                    
+                    st.markdown("---")
+
+            with totals_container:
+                # Totals Logic
+                subtotal = cart_data.get("subtotal", 0)
+                discount = cart_data.get("discount", 0)
+                total = cart_data.get("total", 0)
+                
+                col_t1, col_t2 = st.columns([1, 1])
+                with col_t2:
+                    st.markdown(f"<div class='total-box'>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='total-label'>Subtotal: ${subtotal:.2f}</div>", unsafe_allow_html=True)
+                    if discount > 0:
+                         st.markdown(f"<div class='total-label' style='color: #d9534f;'>Discount: -${discount:.2f}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='total-amt'>${total:.2f}</div>", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
     time.sleep(poll_interval)
     st.rerun()
@@ -748,7 +753,7 @@ elif page == "Transactions":
             })
         
         display_cart_df = pd.DataFrame(display_rows)
-        st.dataframe(style_dataframe(display_cart_df), use_container_width=True, hide_index=True)
+        st.dataframe(style_dataframe(display_cart_df), width='stretch', hide_index=True)
         
         # Checkout Discount (use reset flag to avoid StreamlitAPIException)
         if st.session_state.get("_reset_discount", False):
@@ -904,7 +909,7 @@ elif page == "History":
     st.header("Transaction History")
     df = get_transactions_df(limit=200)
     if not df.empty:
-        st.dataframe(style_dataframe(df), use_container_width=True, hide_index=True)
+        st.dataframe(style_dataframe(df), width='stretch', hide_index=True)
     else:
         st.info("No transactions recorded yet.")
 
