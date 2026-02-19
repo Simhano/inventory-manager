@@ -380,7 +380,9 @@ def get_live_cart():
         print(f'Failed to get live cart: {e}')
         return None
 
+@retry_db(max_retries=3)
 def clear_live_cart():
     empty_cart = {'items': [], 'subtotal': 0, 'discount': 0, 'total': 0}
-    update_live_cart(empty_cart)
+    print("Clearing live cart...")
+    return update_live_cart(empty_cart)
 

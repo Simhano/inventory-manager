@@ -784,7 +784,8 @@ elif page == "Transactions":
 
                             st.session_state["cart"] = []
                             st.session_state["_reset_discount"] = True
-                            clear_live_cart() # Clear Customer Display
+                            sync_cart() # Sync empty cart to Customer Display
+                            time.sleep(0.1) # Ensure sync completes
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -811,7 +812,8 @@ elif page == "Transactions":
                             
                             st.session_state["cart"] = []
                             st.session_state["_reset_discount"] = True
-                            clear_live_cart() # Clear Customer Display
+                            sync_cart() # Sync empty cart to Customer Display
+                            time.sleep(0.1) # Ensure sync completes
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -824,8 +826,8 @@ elif page == "Transactions":
                         st.success("Restock Complete! Inventory Updated.")
                         st.session_state["cart"] = []
                         st.session_state["_reset_discount"] = True
-                        clear_live_cart() # Clear Customer Display
-                        time.sleep(1)
+                        sync_cart() # Clear Customer Display
+                        time.sleep(0.1)
                         st.rerun()
                     else:
                         st.error(f"Restock Failed: {receipt_id}")
@@ -833,7 +835,8 @@ elif page == "Transactions":
         if st.button("Empty Cart (Cancel)"):
              st.session_state["cart"] = []
              st.session_state["_reset_discount"] = True
-             clear_live_cart() # Clear Customer Display
+             sync_cart() # Clear Customer Display
+             time.sleep(0.1)
              st.rerun()
              
     # Handle Auto-Print Trigger (Immediate)
