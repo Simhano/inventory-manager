@@ -593,8 +593,11 @@ elif page == "Transactions":
         display_cart_df = pd.DataFrame(display_rows)
         st.dataframe(style_dataframe(display_cart_df), use_container_width=True, hide_index=True)
         
-        # Checkout Discount
-        if "checkout_discount" not in st.session_state:
+        # Checkout Discount (use reset flag to avoid StreamlitAPIException)
+        if st.session_state.get("_reset_discount", False):
+            st.session_state["checkout_discount"] = 0
+            st.session_state["_reset_discount"] = False
+        elif "checkout_discount" not in st.session_state:
             st.session_state["checkout_discount"] = 0
         
         col_discount, col_total = st.columns([1, 2])
@@ -660,7 +663,7 @@ elif page == "Transactions":
                                 st.session_state["actions_trigger_print"] = None
 
                             st.session_state["cart"] = []
-                            st.session_state["checkout_discount"] = 0
+                            st.session_state["_reset_discount"] = True
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -686,7 +689,7 @@ elif page == "Transactions":
                                 st.session_state["actions_trigger_print"] = None
                             
                             st.session_state["cart"] = []
-                            st.session_state["checkout_discount"] = 0
+                            st.session_state["_reset_discount"] = True
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -698,7 +701,7 @@ elif page == "Transactions":
                     if success:
                         st.success("Restock Complete! Inventory Updated.")
                         st.session_state["cart"] = []
-                        st.session_state["checkout_discount"] = 0
+                        st.session_state["_reset_discount"] = True
                         time.sleep(1)
                         st.rerun()
                     else:
@@ -706,7 +709,7 @@ elif page == "Transactions":
                     
         if st.button("Empty Cart (Cancel)"):
              st.session_state["cart"] = []
-             st.session_state["checkout_discount"] = 0
+             st.session_state["_reset_discount"] = True
              st.rerun()
              
     # Handle Auto-Print Trigger (Immediate)
