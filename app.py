@@ -386,10 +386,7 @@ elif page == "Dashboard":
         else:
             st.success("All stock levels are healthy.")
             
-        # Recent Activity (Mini)
-        # st.subheader("Recent Activity")
-        # trans_df = get_transactions_df(limit=5)
-        # st.dataframe(style_dataframe(trans_df), hide_index=True)
+        pass
 
 
     else:
