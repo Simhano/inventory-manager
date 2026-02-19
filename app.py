@@ -299,15 +299,15 @@ if page == "📺 Customer View":
             sale_pct = item.get('sale_percent', 0)
             bogo = item.get('bogo', False)
             
-            # Effective Price Calculation
+            # Helper logic duplicated from Cashier view for simplicity
             eff_price = price * (1 - sale_pct/100)
             
-            # Promo String
             promos = []
             if sale_pct > 0:
                 promos.append(f"🔥 -{sale_pct}% OFF")
-            if bogo and qty >= 2:
-                paid = get_bogo_paid_qty(qty, bogo) # Need helper or recalc
+            
+            if bogo:
+                paid = get_bogo_paid_qty(qty, bogo) 
                 free_qty = qty - paid
                 promos.append(f"🎁 {free_qty} FREE (BOGO)")
             
@@ -327,7 +327,7 @@ if page == "📺 Customer View":
             
             st.markdown("---")
             
-        # Totals
+        # Totals (MOVED OUTSIDE LOOP)
         subtotal = cart_data.get("subtotal", 0)
         discount = cart_data.get("discount", 0)
         total = cart_data.get("total", 0)
