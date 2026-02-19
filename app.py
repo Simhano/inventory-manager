@@ -270,7 +270,7 @@ if page == "📺 Customer View":
     
     if not cart_data or not cart_data.get("items"):
         st.markdown("<div style='text-align: center; margin-top: 100px;'>", unsafe_allow_html=True)
-        st.info("👋 Welcome! Items will appear here.", icon="�")
+        st.info("👋 Welcome! Items will appear here.", icon="🛒")
         st.markdown("</div>", unsafe_allow_html=True)
     else:
         # Show Items
