@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import math
 from datetime import datetime
 from database import init_connection, add_item, update_stock, get_inventory_df, get_transactions_df, get_top_selling_items, delete_item, update_item_details, get_setting, set_setting, process_batch_transaction
 
@@ -18,31 +19,88 @@ if "cart" not in st.session_state:
     st.session_state["cart"] = []
 
 
+# --- Helper: Price Calculation ---
+def get_effective_price(price, sale_percent):
+    """Calculate the effective price after sale discount."""
+    if sale_percent and sale_percent > 0:
+        return price * (1 - sale_percent / 100)
+    return price
+
+def get_bogo_paid_qty(qty, bogo):
+    """Calculate how many units to charge for (BOGO: buy 2 pay 1)."""
+    if bogo and qty >= 2:
+        return math.ceil(qty / 2)
+    return qty
+
+def calculate_cart_totals(cart_items, checkout_discount_pct=0):
+    """Calculate all cart totals with promotions."""
+    subtotal = 0
+    for item in cart_items:
+        price = item['price']
+        sale_pct = item.get('sale_percent', 0)
+        effective_price = get_effective_price(price, sale_pct)
+        bogo = item.get('bogo', False)
+        paid_qty = get_bogo_paid_qty(item['qty'], bogo)
+        item_total = effective_price * paid_qty
+        subtotal += item_total
+    
+    discount_amount = subtotal * (checkout_discount_pct / 100)
+    final_total = subtotal - discount_amount
+    return subtotal, discount_amount, final_total
+
+
 # --- UI Helpers ---
 def style_dataframe(df):
     """Applies alternating row colors (White / Light Blue) to a dataframe."""
     def highlight_rows(row):
-        # Check if index is integer, if not try to use implicit counter
-        # robust way: alternating colors regardless of index value
         return ['background-color: #e6f3ff' if row.name % 2 != 0 else 'background-color: #ffffff' for _ in row]
     
-    # Ensure zero-based integer index for styling
     df = df.reset_index(drop=True)
     return df.style.apply(highlight_rows, axis=1)
 
-def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False):
-    """Generates a simple HTML receipt."""
+def generate_receipt_html(cart_items, subtotal, discount_pct, discount_amount, final_total, receipt_id, auto_print=False):
+    """Generates a simple HTML receipt with promotion info."""
     date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     rows_html = ""
     for item in cart_items:
+        price = item['price']
+        sale_pct = item.get('sale_percent', 0)
+        effective_price = get_effective_price(price, sale_pct)
+        bogo = item.get('bogo', False)
+        qty = item['qty']
+        paid_qty = get_bogo_paid_qty(qty, bogo)
+        item_total = effective_price * paid_qty
+        
+        # Build promo tags
+        promo_tags = ""
+        if sale_pct and sale_pct > 0:
+            promo_tags += f' <small style="color:red;">(-{sale_pct}%)</small>'
+        if bogo and qty >= 2:
+            free_qty = qty - paid_qty
+            promo_tags += f' <small style="color:green;">({free_qty} FREE)</small>'
+        
+        # Price display
+        if sale_pct and sale_pct > 0:
+            price_display = f'<s>${price:.2f}</s> ${effective_price:.2f}'
+        else:
+            price_display = f'${effective_price:.2f}'
+        
         rows_html += f"""
         <tr>
-            <td>{item['name']}</td>
-            <td>{item['qty']}</td>
-            <td>${item['price']:.2f}</td>
-            <td>${item['qty'] * item['price']:.2f}</td>
+            <td>{item['name']}{promo_tags}</td>
+            <td>{qty}</td>
+            <td>{price_display}</td>
+            <td>${item_total:.2f}</td>
         </tr>
+        """
+    
+    # Discount line
+    discount_html = ""
+    if discount_pct > 0:
+        discount_html = f"""
+        <p class="right">Subtotal: ${subtotal:.2f}</p>
+        <p class="right" style="color:red;">Discount ({discount_pct}%): -${discount_amount:.2f}</p>
         """
         
     auto_print_script = "<script>window.onload = function() { window.print(); }</script>" if auto_print else ""
@@ -66,7 +124,8 @@ def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False
             
             <div class="divider"></div>
             
-            <p class="right"><strong>TOTAL: ${total_amount:.2f}</strong></p>
+            {discount_html}
+            <p class="right"><strong>TOTAL: ${final_total:.2f}</strong></p>
             
             <div class="footer">
                 <p>Thank you for your business!</p>
@@ -84,15 +143,11 @@ def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False
             table {{ width: 100%; border-collapse: collapse; }}
             
             /* Spacing and Alignment */
-            th, td {{ padding: 5px 2px; }} /* Vertical 5px, Horizontal 2px */
+            th, td {{ padding: 5px 2px; }}
             
-            /* Item (Left) */
             th:nth-child(1), td:nth-child(1) {{ text-align: left; width: 40%; }}
-            /* Qty (Center) */
             th:nth-child(2), td:nth-child(2) {{ text-align: center; width: 15%; }}
-            /* Price (Right) */
             th:nth-child(3), td:nth-child(3) {{ text-align: right; width: 20%; }}
-            /* Total (Right) */
             th:nth-child(4), td:nth-child(4) {{ text-align: right; width: 25%; }}
             
             .right {{ text-align: right; }}
@@ -118,15 +173,13 @@ def generate_receipt_html(cart_items, total_amount, receipt_id, auto_print=False
 
 def check_global_password():
     """Checks for the 'Global Wall' password."""
-    # Retrieve dynamic password from DB (default 0000)
     correct_password = get_setting("global_password", "0000")
     
     def password_entered():
-        # Use .get() to avoid KeyError if widget state is lost
         entered = st.session_state.get("global_password_input", "")
         if entered == correct_password:
             st.session_state["global_access_granted"] = True
-            st.session_state["global_password_input"] = "" # Clear input instead of deleting
+            st.session_state["global_password_input"] = ""
         else:
             st.session_state["global_access_granted"] = False
 
@@ -159,7 +212,6 @@ def check_admin_password():
         st.text_input("🔑 Enter Admin Password for Full Access", type="password", on_change=password_entered, key="admin_password_input")
         return False
     else:
-        # Logout button for admin
         if st.sidebar.button("Admin Logout"):
              st.session_state["admin_access_granted"] = False
              st.rerun()
@@ -174,7 +226,7 @@ if not check_global_password():
 # Logout for Global
 if st.sidebar.button("Exit App (Logout)"):
     st.session_state["global_access_granted"] = False
-    st.session_state["admin_access_granted"] = False  # Log out admin too
+    st.session_state["admin_access_granted"] = False
     st.rerun()
 
 # Sidebar Navigation
@@ -258,10 +310,16 @@ elif page == "Inventory (Admin)":
             price = col4.number_input("Price", min_value=0.0, value=0.0, step=0.01)
             min_threshold = col5.number_input("Low Stock Threshold", min_value=1, value=5)
             
+            # Promotions
+            st.markdown("**🏷️ Promotions**")
+            col_sale, col_bogo = st.columns(2)
+            sale_percent = col_sale.number_input("Sale % (0 = no sale)", min_value=0, max_value=90, value=0, help="Set a percentage discount for this product")
+            bogo = col_bogo.checkbox("🎁 Buy One Get One Free (BOGO)", value=False)
+            
             submitted = st.form_submit_button("Add Item")
             if submitted:
                 if name:
-                    success, msg = add_item(name, category, maker, supplier, color, barcode, quantity, price, min_threshold)
+                    success, msg = add_item(name, category, maker, supplier, color, barcode, quantity, price, min_threshold, sale_percent, bogo)
                     if success:
                         st.success(msg)
                         time.sleep(1)
@@ -281,7 +339,7 @@ elif page == "Inventory (Admin)":
             
             if edit_item_name:
                 item_row = df[df['name'] == edit_item_name].iloc[0]
-                edit_id = int(item_row['id']) # Ensure int
+                edit_id = int(item_row['id'])
                 
                 with st.form("edit_item_form"):
                     col1, col2 = st.columns(2)
@@ -303,10 +361,18 @@ elif page == "Inventory (Admin)":
                     new_price = col3.number_input("Price", min_value=0.0, value=float(item_row['price']), step=0.01)
                     new_threshold = col4.number_input("Low Stock Threshold", min_value=1, value=int(item_row['min_threshold']))
                     
+                    # Promotions
+                    st.markdown("**🏷️ Promotions**")
+                    col_sale, col_bogo = st.columns(2)
+                    curr_sale = int(item_row.get('sale_percent', 0)) if item_row.get('sale_percent') is not None else 0
+                    curr_bogo = bool(item_row.get('bogo', False))
+                    new_sale_percent = col_sale.number_input("Sale % (0 = no sale)", min_value=0, max_value=90, value=curr_sale, help="Set a percentage discount for this product")
+                    new_bogo = col_bogo.checkbox("🎁 BOGO (Buy One Get One Free)", value=curr_bogo)
+                    
                     col_update, col_delete = st.columns([1, 1])
                     with col_update:
                         if st.form_submit_button("Update Item Details"):
-                            success, msg = update_item_details(edit_id, new_name, new_category, new_maker, new_supplier, new_color, new_barcode, new_price, new_threshold)
+                            success, msg = update_item_details(edit_id, new_name, new_category, new_maker, new_supplier, new_color, new_barcode, new_price, new_threshold, new_sale_percent, new_bogo)
                             if success:
                                 st.success(f"Updated {new_name}: {msg}")
                                 time.sleep(1)
@@ -329,7 +395,20 @@ elif page == "Inventory (Admin)":
     # View Inventory
     st.subheader("Current Stock")
     if not df.empty:
-        st.dataframe(style_dataframe(df), use_container_width=True, hide_index=True)
+        # Add promo badges to display
+        display_df = df.copy()
+        def promo_badge(row):
+            badges = []
+            if row.get('sale_percent', 0) and row['sale_percent'] > 0:
+                badges.append(f"🔥 {row['sale_percent']}% OFF")
+            if row.get('bogo', False):
+                badges.append("🎁 BOGO")
+            return " | ".join(badges) if badges else ""
+        
+        display_df['Promos'] = display_df.apply(promo_badge, axis=1)
+        show_cols = ['name', 'category', 'quantity', 'price', 'Promos', 'barcode']
+        show_cols = [c for c in show_cols if c in display_df.columns]
+        st.dataframe(style_dataframe(display_df[show_cols]), use_container_width=True, hide_index=True)
     else:
         st.info("Inventory is empty.")
 
@@ -341,19 +420,24 @@ elif page == "Transactions":
     with col_mode_1:
         st.subheader("Add Item to Cart")
     with col_mode_2:
-        # Transaction Mode Selector
         mode = st.radio("Mode", ["Sale", "Restock"], horizontal=True, label_visibility="collapsed")
         
     df = get_inventory_df()
     if df.empty:
         st.warning("No items in inventory.")
     else:
-        # Create a display label for each item
-        # Create a display label for each item
+        # Create a display label for each item with promo badges
         def format_item_label(row):
             parts = [row['name']]
             if 'color' in row and row['color']: parts.append(f"({row['color']})")
             if 'barcode' in row and row['barcode']: parts.append(str(row['barcode']))
+            # Promo badges
+            sale_pct = row.get('sale_percent', 0)
+            if sale_pct and sale_pct > 0:
+                eff_price = get_effective_price(float(row['price']), sale_pct)
+                parts.append(f"🔥{sale_pct}%OFF ${row['price']:.2f}→${eff_price:.2f}")
+            if row.get('bogo', False):
+                parts.append("🎁BOGO")
             parts.append(f"Stock: {row['quantity']}")
             return " | ".join(parts)
 
@@ -366,33 +450,30 @@ elif page == "Transactions":
         def process_scan():
             code = st.session_state.get("barcode_input", "").strip()
             if code:
-                # Find item by barcode
-                # Ensure barcode column is string for comparison
                 matches = df[df['barcode'].astype(str) == code]
                 
                 if not matches.empty:
                     row = matches.iloc[0]
                     qty_to_add = 1
                     
-                    # Validate Stock (if Sale)
                     if mode == "Sale" and row['quantity'] < qty_to_add:
                         st.session_state["scan_msg"] = (False, f"Not enough stock for {row['name']}! (Available: {row['quantity']})")
                     else:
-                        # Add to Cart
                         item_data = {
                             "id": int(row['id']),
                             "name": row['name'],
                             "price": float(row['price']),
                             "qty": qty_to_add,
                             "note": "Scanned",
-                            "max_qty": int(row['quantity'])
+                            "max_qty": int(row['quantity']),
+                            "sale_percent": int(row.get('sale_percent', 0)),
+                            "bogo": bool(row.get('bogo', False))
                         }
                         st.session_state["cart"].append(item_data)
                         st.session_state["scan_msg"] = (True, f"Added: {row['name']}")
                 else:
                     st.session_state["scan_msg"] = (False, f"Barcode not found: {code}")
             
-            # Clear input
             st.session_state["barcode_input"] = ""
 
         st.text_input("⚡ Quick Scan (Barcode)", key="barcode_input", on_change=process_scan, placeholder="Click here and scan item...", help="Scans add 1 unit automatically.")
@@ -413,13 +494,9 @@ elif page == "Transactions":
         col_search, col_qty = st.columns([3, 1])
         
         with col_search:
-            # Note: Removed index=None where possible if session state handles it, 
-            # but for selectbox with placeholder, index=None is needed for initial render if state is empty.
-            # However, since we init state above, we can rely on state.
             selected_label = st.selectbox("Search Item (Manual)", options=list(item_map.keys()), placeholder="Type name or select...", key="pos_search", index=None)
             
         with col_qty:
-            # Removed value=1 to avoid warning
             qty = st.number_input("Qty", min_value=1, key="pos_qty")
             
         col_add, col_note = st.columns([1, 3])
@@ -446,14 +523,16 @@ elif page == "Transactions":
                       st.session_state["manual_msg"] = (False, f"Not enough stock! (Available: {row['quantity']})")
                       return
                  
-                 # Success
+                 # Success - include promo info
                  item_data = {
                      "id": int(row['id']),
                      "name": row['name'],
                      "price": float(row['price']),
                      "qty": qty,
                      "note": note,
-                     "max_qty": int(row['quantity'])
+                     "max_qty": int(row['quantity']),
+                     "sale_percent": int(row.get('sale_percent', 0)),
+                     "bogo": bool(row.get('bogo', False))
                  }
                  st.session_state["cart"].append(item_data)
                  st.session_state["manual_msg"] = (True, f"Added {row['name']}")
@@ -470,7 +549,6 @@ elif page == "Transactions":
                  m_success, m_msg = st.session_state["manual_msg"]
                  if m_success:
                      st.success(m_msg)
-                     # Clear message after showing so it doesn't persist forever
                      st.session_state["manual_msg"] = None
                  else:
                      st.error(m_msg)
@@ -483,16 +561,54 @@ elif page == "Transactions":
     
     if st.session_state["cart"]:
         cart_df = pd.DataFrame(st.session_state["cart"])
-        cart_df['Total'] = cart_df['price'] * cart_df['qty']
         
-        # Display Cart Table (Custom HTML/Table for Actions is hard in pure Streamlit, using dataframe for display)
-        # We will add a "Clear Cart" button for simplicity instead of per-row delete for this version, 
-        # or use a Multiselect to remove items.
+        # Calculate display columns with promos
+        display_rows = []
+        for item in st.session_state["cart"]:
+            price = item['price']
+            sale_pct = item.get('sale_percent', 0)
+            eff_price = get_effective_price(price, sale_pct)
+            bogo = item.get('bogo', False)
+            qty = item['qty']
+            paid_qty = get_bogo_paid_qty(qty, bogo)
+            item_total = eff_price * paid_qty
+            
+            # Build promo text
+            promo = ""
+            if sale_pct and sale_pct > 0:
+                promo += f"🔥-{sale_pct}% "
+            if bogo and qty >= 2:
+                free_qty = qty - paid_qty
+                promo += f"🎁{free_qty} FREE "
+            
+            display_rows.append({
+                "Name": item['name'],
+                "Qty": qty,
+                "Price": f"${eff_price:.2f}" + (f" (was ${price:.2f})" if sale_pct > 0 else ""),
+                "Promos": promo.strip(),
+                "Total": f"${item_total:.2f}",
+                "Note": item.get('note', '')
+            })
         
-        st.dataframe(style_dataframe(cart_df[['name', 'qty', 'price', 'Total', 'note']]), use_container_width=True, hide_index=True)
+        display_cart_df = pd.DataFrame(display_rows)
+        st.dataframe(style_dataframe(display_cart_df), use_container_width=True, hide_index=True)
         
-        total_amount = cart_df['Total'].sum()
-        st.markdown(f"### Total: ${total_amount:,.2f}")
+        # Checkout Discount
+        if "checkout_discount" not in st.session_state:
+            st.session_state["checkout_discount"] = 0
+        
+        col_discount, col_total = st.columns([1, 2])
+        with col_discount:
+            checkout_discount_pct = st.number_input("🏷️ Checkout Discount %", min_value=0, max_value=50, key="checkout_discount", help="Apply an additional discount to the entire purchase")
+        
+        # Calculate totals
+        subtotal, discount_amount, final_total = calculate_cart_totals(st.session_state["cart"], checkout_discount_pct)
+        
+        with col_total:
+            if checkout_discount_pct > 0:
+                st.markdown(f"Subtotal: ${subtotal:,.2f}")
+                st.markdown(f"🏷️ Discount ({checkout_discount_pct}%): **-${discount_amount:,.2f}**")
+            st.markdown(f"### 💰 Total: ${final_total:,.2f}")
         
         # Remove Item Logic
         item_to_remove = st.selectbox("Remove Item:", options=cart_df['name'].tolist(), index=None, placeholder="Select item to remove...")
@@ -507,13 +623,19 @@ elif page == "Transactions":
         col_chk_1, col_chk_2 = st.columns(2)
         
         with col_chk_1:
-            # Persist auto-print setting
-            if "auto_print_check" not in st.session_state:
-                st.session_state["auto_print_check"] = True
-            auto_print = st.checkbox("Auto-Print Receipt", value=st.session_state["auto_print_check"], key="auto_print_check_widget", on_change=lambda: st.session_state.update(auto_print_check=st.session_state.auto_print_check_widget))
+            # Receipt Toggle
+            if "generate_receipt_check" not in st.session_state:
+                st.session_state["generate_receipt_check"] = True
+            generate_receipt = st.checkbox("📄 Generate Receipt", value=st.session_state["generate_receipt_check"], key="gen_receipt_widget", on_change=lambda: st.session_state.update(generate_receipt_check=st.session_state.gen_receipt_widget))
+            
+            if generate_receipt:
+                if "auto_print_check" not in st.session_state:
+                    st.session_state["auto_print_check"] = True
+                auto_print = st.checkbox("🖨️ Auto-Print Receipt", value=st.session_state["auto_print_check"], key="auto_print_check_widget", on_change=lambda: st.session_state.update(auto_print_check=st.session_state.auto_print_check_widget))
+            else:
+                auto_print = False
             
         with col_chk_2:
-            # Check the mode defined above
             if mode == "Sale":
                 col_cash, col_card = st.columns(2)
                 
@@ -524,21 +646,21 @@ elif page == "Transactions":
                         if success:
                             st.success("Cash Transaction Complete!")
                             
-                            # Generate Receipt Content (No Auto-Print Script yet)
-                            receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print=False)
-                            
-                            # Store in session state for reprint (clean version)
-                            st.session_state["last_receipt"] = receipt_html
-                            
-                            # For immediate auto-print, we inject the script here
-                            if auto_print:
-                                receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
-                                st.session_state["actions_trigger_print"] = receipt_html_print
+                            if generate_receipt:
+                                receipt_html = generate_receipt_html(st.session_state["cart"], subtotal, checkout_discount_pct, discount_amount, final_total, receipt_id, auto_print=False)
+                                st.session_state["last_receipt"] = receipt_html
+                                
+                                if auto_print:
+                                    receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                                    st.session_state["actions_trigger_print"] = receipt_html_print
+                                else:
+                                     st.session_state["actions_trigger_print"] = None
                             else:
-                                 st.session_state["actions_trigger_print"] = None
+                                st.session_state["last_receipt"] = None
+                                st.session_state["actions_trigger_print"] = None
 
-                            # Clear Cart
                             st.session_state["cart"] = []
+                            st.session_state["checkout_discount"] = 0
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -550,21 +672,21 @@ elif page == "Transactions":
                         if success:
                             st.success("Card Transaction Recorded!")
                             
-                            # Generate Receipt Content
-                            receipt_html = generate_receipt_html(st.session_state["cart"], total_amount, receipt_id, auto_print=False)
-                            
-                            # Store clean version
-                            st.session_state["last_receipt"] = receipt_html
-                            
-                            # Trigger Auto-Print
-                            if auto_print:
-                                receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
-                                st.session_state["actions_trigger_print"] = receipt_html_print
+                            if generate_receipt:
+                                receipt_html = generate_receipt_html(st.session_state["cart"], subtotal, checkout_discount_pct, discount_amount, final_total, receipt_id, auto_print=False)
+                                st.session_state["last_receipt"] = receipt_html
+                                
+                                if auto_print:
+                                    receipt_html_print = receipt_html.replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
+                                    st.session_state["actions_trigger_print"] = receipt_html_print
+                                else:
+                                     st.session_state["actions_trigger_print"] = None
                             else:
-                                 st.session_state["actions_trigger_print"] = None
+                                st.session_state["last_receipt"] = None
+                                st.session_state["actions_trigger_print"] = None
                             
-                            # Clear Cart
                             st.session_state["cart"] = []
+                            st.session_state["checkout_discount"] = 0
                             st.rerun()
                         else:
                             st.error(f"Transaction Failed: {receipt_id}")
@@ -575,9 +697,8 @@ elif page == "Transactions":
                     
                     if success:
                         st.success("Restock Complete! Inventory Updated.")
-                        # No receipt needed for restock usually, but we can generate one if they want.
-                        # For now, just clear cart.
                         st.session_state["cart"] = []
+                        st.session_state["checkout_discount"] = 0
                         time.sleep(1)
                         st.rerun()
                     else:
@@ -585,13 +706,12 @@ elif page == "Transactions":
                     
         if st.button("Empty Cart (Cancel)"):
              st.session_state["cart"] = []
+             st.session_state["checkout_discount"] = 0
              st.rerun()
              
     # Handle Auto-Print Trigger (Immediate)
     if "actions_trigger_print" in st.session_state and st.session_state["actions_trigger_print"]:
-         # Show the print version
          st.components.v1.html(st.session_state["actions_trigger_print"], height=0, width=0, scrolling=False)
-         # Clear it immediately so it doesn't reprint on reload
          st.session_state["actions_trigger_print"] = None
 
     # Show Last Receipt (Passive View)
@@ -602,7 +722,6 @@ elif page == "Transactions":
         
         with col_repr_1:
             if st.button("🖨️ Reprint Receipt"):
-                # Inject print script into the stored clean HTML
                 print_html = st.session_state["last_receipt"].replace("</head>", "<script>window.onload = function() { window.print(); }</script></head>")
                 st.components.v1.html(print_html, height=0, width=0, scrolling=False)
 

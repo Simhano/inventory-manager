@@ -72,8 +72,16 @@ def get_inventory_df():
         response = supabase.table("inventory").select("*").order("id").execute()
         data = response.data
         if not data:
-            return pd.DataFrame(columns=['id', 'name', 'category', 'maker', 'supplier', 'color', 'barcode', 'quantity', 'price', 'min_threshold'])
-        return pd.DataFrame(data)
+            return pd.DataFrame(columns=['id', 'name', 'category', 'maker', 'supplier', 'color', 'barcode', 'quantity', 'price', 'min_threshold', 'sale_percent', 'bogo'])
+        df = pd.DataFrame(data)
+        # Ensure promo columns exist even if DB hasn't been updated yet
+        if 'sale_percent' not in df.columns:
+            df['sale_percent'] = 0
+        if 'bogo' not in df.columns:
+            df['bogo'] = False
+        df['sale_percent'] = df['sale_percent'].fillna(0).astype(int)
+        df['bogo'] = df['bogo'].fillna(False).astype(bool)
+        return df
     except Exception as e:
         st.error(f"Error fetching inventory: {e}")
         return pd.DataFrame()
@@ -90,7 +98,7 @@ def get_transactions_df(limit=100):
         st.error(f"Error fetching transactions: {e}")
         return pd.DataFrame()
 
-def add_item(name, category, maker, supplier, color, barcode, quantity, price, min_threshold):
+def add_item(name, category, maker, supplier, color, barcode, quantity, price, min_threshold, sale_percent=0, bogo=False):
     """Add a new item to the inventory."""
     try:
         # Treat empty barcode as None to avoid unique constraint violation on empty strings
@@ -103,7 +111,6 @@ def add_item(name, category, maker, supplier, color, barcode, quantity, price, m
         supplier = supplier.upper() if supplier else supplier
 
         # Check if item exists (by name or barcode)
-        # Unique constraints on DB will handle this, but we can check nicely.
         existing = supabase.table("inventory").select("id").eq("name", name).execute()
         if existing.data:
             return False, f"Item '{name}' already exists."
@@ -122,7 +129,9 @@ def add_item(name, category, maker, supplier, color, barcode, quantity, price, m
             "barcode": barcode,
             "quantity": quantity,
             "price": price,
-            "min_threshold": min_threshold
+            "min_threshold": min_threshold,
+            "sale_percent": int(sale_percent),
+            "bogo": bool(bogo)
         }
         
         response = supabase.table("inventory").insert(data).execute()
@@ -202,7 +211,7 @@ def process_batch_transaction(cart_items, transaction_type="SALE", payment_metho
     except Exception as e:
         return False, str(e)
 
-def update_item_details(item_id, name, category, maker, supplier, color, barcode, price, min_threshold):
+def update_item_details(item_id, name, category, maker, supplier, color, barcode, price, min_threshold, sale_percent=0, bogo=False):
     try:
         # Treat empty barcode as None
         if not barcode:
@@ -221,7 +230,9 @@ def update_item_details(item_id, name, category, maker, supplier, color, barcode
             "color": color,
             "barcode": barcode,
             "price": price,
-            "min_threshold": min_threshold
+            "min_threshold": min_threshold,
+            "sale_percent": int(sale_percent),
+            "bogo": bool(bogo)
         }
         supabase.table("inventory").update(data).eq("id", item_id).execute()
         return True, "Item updated successfully."
