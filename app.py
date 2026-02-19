@@ -757,6 +757,7 @@ elif page == "Transactions":
             if item_to_remove:
                 st.session_state["cart"] = [i for i in st.session_state["cart"] if i['name'] != item_to_remove]
                 sync_cart() # Sync to Customer Display
+                time.sleep(1.0) # Ensure sync completes
                 st.rerun()
         
         st.divider()
