@@ -92,7 +92,7 @@ def get_transactions_df(limit=100):
         response = supabase.table("transactions").select("*").order("timestamp", desc=True).limit(limit).execute()
         data = response.data
         if not data:
-            return pd.DataFrame(columns=['id', 'item_id', 'item_name', 'type', 'quantity', 'timestamp', 'note', 'receipt_id'])
+            return pd.DataFrame(columns=['id', 'item_id', 'item_name', 'type', 'quantity', 'timestamp', 'note', 'receipt_id', 'payment_method'])
         return pd.DataFrame(data)
     except Exception as e:
         st.error(f"Error fetching transactions: {e}")
@@ -254,17 +254,18 @@ def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None, 
         supabase.table("transactions").insert(data).execute()
         return True, "Logged"
     except Exception as e:
-        print(f"Failed to log transaction with payment_method: {e}")
-        # Fallback: Try without payment_method AND receipt_id (safest fallback)
+        # If this fails, it is likely because the 'payment_method' or 'receipt_id' columns 
+        # are missing from the Supabase table.
+        print(f"⚠️ Failed to log transaction with payment_method: {e}")
         try:
-            # Use pop to avoid KeyError if key doesn't exist
+            # Fallback: Try without the newer columns
             data.pop("payment_method", None)
             data.pop("receipt_id", None)
             supabase.table("transactions").insert(data).execute()
-            return True, "Logged (Fallback)"
+            return True, f"Logged (Fallback - Missing DB Column? Error: {e})"
         except Exception as e2:
-             print(f"Failed to log transaction (fallback): {e2}")
-             return False, str(e2)
+             print(f"CRITICAL: Failed to log transaction (fallback): {e2}")
+             return False, f"Log Failed: {e2}"
 
 def delete_item(item_id):
     """Delete item and its transactions."""
