@@ -14,7 +14,7 @@ except Exception:
     st.error("Missing secrets! Make sure you have .streamlit/secrets.toml locally or secrets configured in Cloud.")
     st.stop()
 
-@st.cache_resource
+@st.cache_resource(ttl=3600)
 def init_connection():
     try:
         return create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -23,6 +23,25 @@ def init_connection():
         return None
 
 supabase = init_connection()
+
+# --- Retry Logic for Stability ---
+import time
+from functools import wraps
+
+def retry_db(max_retries=3, delay=1):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for i in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if i == max_retries - 1:
+                        print(f"DB Error after {max_retries} retries: {e}")
+                        raise e
+                    time.sleep(delay * (i + 1)) # Exponential-ish backoff
+        return wrapper
+    return decorator
 
 # --- Settings ---
 def init_settings():
@@ -66,6 +85,7 @@ if supabase:
 
 # --- Core Functions ---
 
+@retry_db(max_retries=3)
 def get_inventory_df():
     """Fetch all inventory items as a DataFrame."""
     try:
@@ -86,6 +106,7 @@ def get_inventory_df():
         st.error(f"Error fetching inventory: {e}")
         return pd.DataFrame()
 
+@retry_db(max_retries=3)
 def get_transactions_df(limit=100):
     """Fetch recent transactions."""
     try:
@@ -98,6 +119,7 @@ def get_transactions_df(limit=100):
         st.error(f"Error fetching transactions: {e}")
         return pd.DataFrame()
 
+@retry_db(max_retries=3)
 def add_item(name, category, maker, supplier, color, barcode, quantity, price, min_threshold, sale_percent=0, bogo=False):
     """Add a new item to the inventory."""
     try:
@@ -144,6 +166,7 @@ def add_item(name, category, maker, supplier, color, barcode, quantity, price, m
     except Exception as e:
         return False, str(e)
 
+@retry_db(max_retries=3)
 def update_stock(item_id, item_name, change_amount, transaction_type, note="", receipt_id=None, payment_method="CASH"):
     """Update stock level and log transaction."""
     try:
@@ -211,6 +234,7 @@ def process_batch_transaction(cart_items, transaction_type="SALE", payment_metho
     except Exception as e:
         return False, str(e)
 
+@retry_db(max_retries=3)
 def update_item_details(item_id, name, category, maker, supplier, color, barcode, price, min_threshold, sale_percent=0, bogo=False):
     try:
         # Treat empty barcode as None
@@ -239,6 +263,7 @@ def update_item_details(item_id, name, category, maker, supplier, color, barcode
     except Exception as e:
         return False, str(e)
 
+@retry_db(max_retries=3)
 def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None, payment_method="CASH"):
     try:
         data = {

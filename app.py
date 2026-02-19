@@ -258,9 +258,9 @@ if page == "📺 Customer View":
             [data-testid="stSidebar"], [data-testid="stHeader"], footer {display: none;}
             
             /* Large Fonts */
-            .cust-item-name { font-size: 2.2rem !important; font-weight: bold; color: #333; }
-            .cust-item-detail { font-size: 1.8rem !important; color: #555; }
-            .cust-promo { font-size: 1.4rem !important; color: #d9534f; font-weight: bold; }
+            .cust-item-name { font-size: 2.0rem !important; font-weight: bold; color: #333; }
+            .cust-item-detail { font-size: 2.0rem !important; color: #555; }
+            .cust-promo { font-size: 1.5rem !important; color: #d9534f; font-weight: bold; }
             
             /* Totals Box */
             .total-box { 
@@ -272,7 +272,7 @@ if page == "📺 Customer View":
                 border: 2px solid #bee5eb;
             }
             .total-label { font-size: 1.8rem !important; color: #0c5460; }
-            .total-amt { font-size: 4rem !important; font-weight: 800; color: #000; }
+            .total-amt { font-size: 3.2rem !important; font-weight: 800; color: #000; }
         </style>
     """, unsafe_allow_html=True)
     
