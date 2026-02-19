@@ -298,16 +298,19 @@ if page == "📺 Customer View":
     else:
         poll_interval = 5
         
-    if not cart_data or not cart_data.get("items"):
-        st.markdown("<div style='text-align: center; margin-top: 100px;'>", unsafe_allow_html=True)
-        st.info("👋 Welcome! Items will appear here.", icon="🛒")
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        # Show Items
-        items = cart_data.get("items", [])
-        
-        # 1. Items Container
-        with st.container():
+    # Main visual container for atomic updates
+    main_placeholder = st.empty()
+    
+    with main_placeholder.container():
+        if not cart_data or not cart_data.get("items"):
+            st.markdown("<div style='text-align: center; margin-top: 100px;'>", unsafe_allow_html=True)
+            st.info("👋 Welcome! Items will appear here.", icon="🛒")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            # Show Items
+            items = cart_data.get("items", [])
+            
+            # Items Logic
             st.markdown("---")
             for item in items:
                 name = item['name']
@@ -340,8 +343,7 @@ if page == "📺 Customer View":
                 
                 st.markdown("---")
 
-        # 2. Totals Container
-        with st.container():
+            # Totals Logic
             subtotal = cart_data.get("subtotal", 0)
             discount = cart_data.get("discount", 0)
             total = cart_data.get("total", 0)
