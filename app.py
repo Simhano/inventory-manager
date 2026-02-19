@@ -49,6 +49,19 @@ def calculate_cart_totals(cart_items, checkout_discount_pct=0):
     return subtotal, discount_amount, final_total
 
 
+
+# --- POS Helper to Sync ---
+def sync_cart():
+    if "cart" in st.session_state:
+        sub, disc_amt, final = calculate_cart_totals(st.session_state["cart"], st.session_state.get("checkout_discount", 0))
+        cart_data = {
+            "items": st.session_state["cart"],
+            "subtotal": sub,
+            "discount": disc_amt,
+            "total": final
+        }
+        update_live_cart(cart_data)
+
 # --- UI Helpers ---
 def style_dataframe(df):
     """Applies alternating row colors (White / Light Blue) to a dataframe."""
@@ -333,19 +346,10 @@ if page == "📺 Customer View":
     st.stop() # Stop further execution for this page
 
 # --- POS Helper to Sync ---
-def sync_cart():
-    if "cart" in st.session_state:
-        sub, disc_amt, final = calculate_cart_totals(st.session_state["cart"], st.session_state.get("checkout_discount", 0))
-        cart_data = {
-            "items": st.session_state["cart"],
-            "subtotal": sub,
-            "discount": disc_amt,
-            "total": final
-        }
-        update_live_cart(cart_data)
+
 
 # --- Page Routing ---
-if page == "Dashboard":
+elif page == "Dashboard":
     st.header("Dashboard")
     df = get_inventory_df()
     
