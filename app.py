@@ -154,6 +154,12 @@ def generate_receipt_html(cart_items, subtotal, discount_pct, discount_amount, f
             .divider {{ border-top: 1px dashed black; margin: 10px 0; }}
             .cut-line {{ border-top: 2px dotted black; margin: 20px 0; text-align: center; }}
             .page-break {{ page-break-after: always; }}
+
+            /* Hide browser headers/footers (URL, Page #) */
+            @media print {{
+                @page {{ margin: 0; }}
+                body {{ margin: 0.5cm auto; }}
+            }}
         </style>
         {auto_print_script}
     </head>
@@ -445,6 +451,20 @@ elif page == "Transactions":
         for index, row in df.iterrows():
             label = format_item_label(row)
             item_map[label] = row
+
+        # --- Helper: Consolidated Cart Add ---
+        def add_to_cart_consolidated(new_item):
+            """Adds item to cart, incrementing quantity if it already exists."""
+            # Check if item with same ID and Note already exists
+            found = False
+            for existing in st.session_state["cart"]:
+                if existing['id'] == new_item['id'] and existing['note'] == new_item['note']:
+                    existing['qty'] += new_item['qty']
+                    found = True
+                    break
+            
+            if not found:
+                st.session_state["cart"].append(new_item)
             
         # --- Quick Scan Section ---
         def process_scan():
@@ -469,7 +489,7 @@ elif page == "Transactions":
                             "sale_percent": int(row.get('sale_percent', 0)),
                             "bogo": bool(row.get('bogo', False))
                         }
-                        st.session_state["cart"].append(item_data)
+                        add_to_cart_consolidated(item_data)
                         st.session_state["scan_msg"] = (True, f"Added: {row['name']}")
                 else:
                     st.session_state["scan_msg"] = (False, f"Barcode not found: {code}")
@@ -534,7 +554,7 @@ elif page == "Transactions":
                      "sale_percent": int(row.get('sale_percent', 0)),
                      "bogo": bool(row.get('bogo', False))
                  }
-                 st.session_state["cart"].append(item_data)
+                 add_to_cart_consolidated(item_data)
                  st.session_state["manual_msg"] = (True, f"Added {row['name']}")
                  
                  # Clear Inputs
