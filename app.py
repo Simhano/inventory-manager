@@ -347,6 +347,7 @@ if page == "📺 Customer View":
                 if table_rows:
                     df_display = pd.DataFrame(table_rows)
                     # Use st.dataframe for clean table view
+                    # Dynamic key forces re-render on data change (Fixes ghost items)
                     st.dataframe(
                         style_dataframe(df_display),
                         width='stretch',
@@ -357,7 +358,8 @@ if page == "📺 Customer View":
                             "Qty": st.column_config.NumberColumn("Qty", format="%d"),
                             "Promos": st.column_config.TextColumn("Promos", width="medium"),
                             "Total": st.column_config.TextColumn("Total"),
-                        }
+                        },
+                        key=f"cust_table_{len(table_rows)}_{cart_data.get('total', 0)}"
                     )
 
             with totals_container:
