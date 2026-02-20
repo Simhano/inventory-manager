@@ -315,7 +315,8 @@ if page == "📺 Customer View":
             totals_container = st.container()
             
             with items_container:
-                st.markdown("---")
+                # Table Data Construction
+                table_rows = []
                 for item in items:
                     name = item['name']
                     qty = item['qty']
@@ -326,26 +327,38 @@ if page == "📺 Customer View":
                     
                     promos = []
                     if sale_pct > 0:
-                        promos.append(f"🔥 -{sale_pct}% OFF")
+                        promos.append(f"🔥 -{sale_pct}%")
                     if bogo:
                         paid = get_bogo_paid_qty(qty, bogo) 
                         free_qty = qty - paid
-                        promos.append(f"🎁 {free_qty} FREE (BOGO)")
+                        promos.append(f"🎁 {free_qty} FREE")
                     
-                    promo_text = "  ".join(promos)
+                    item_total = eff_price * get_bogo_paid_qty(qty, bogo)
                     
-                    cols = st.columns([4, 2, 2])
-                    with cols[0]:
-                         st.markdown(f"<div class='cust-item-name'>{name}</div>", unsafe_allow_html=True)
-                         if promo_text:
-                             st.markdown(f"<div class='cust-promo'>{promo_text}</div>", unsafe_allow_html=True)
-                    with cols[1]:
-                         st.markdown(f"<div class='cust-item-detail'>x{qty}</div>", unsafe_allow_html=True)
-                    with cols[2]:
-                         item_total = eff_price * get_bogo_paid_qty(qty, bogo)
-                         st.markdown(f"<div class='cust-item-detail'>${item_total:.2f}</div>", unsafe_allow_html=True)
-                    
-                    st.markdown("---")
+                    table_rows.append({
+                        "Item": name,
+                        "Price": f"${eff_price:.2f}" + (f" (Reg: ${price:.2f})" if sale_pct > 0 else ""),
+                        "Qty": qty,
+                        "Promos": " ".join(promos),
+                        "Total": f"${item_total:.2f}"
+                    })
+                
+                # Display Table
+                if table_rows:
+                    df_display = pd.DataFrame(table_rows)
+                    # Use st.dataframe for clean table view
+                    st.dataframe(
+                        style_dataframe(df_display),
+                        width='stretch',
+                        hide_index=True,
+                        column_config={
+                            "Item": st.column_config.TextColumn("Item", width="large"),
+                            "Price": st.column_config.TextColumn("Price"),
+                            "Qty": st.column_config.NumberColumn("Qty", format="%d"),
+                            "Promos": st.column_config.TextColumn("Promos", width="medium"),
+                            "Total": st.column_config.TextColumn("Total"),
+                        }
+                    )
 
             with totals_container:
                 # Totals Logic
