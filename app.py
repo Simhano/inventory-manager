@@ -513,13 +513,16 @@ elif page == "Inventory (Admin)":
                                 st.error(msg)
                     
                     with col_delete:
+                        if st.session_state.get("_reset_delete_check", False):
+                            st.session_state["confirm_delete_checkbox"] = False
+                            st.session_state["_reset_delete_check"] = False
                         confirm_delete = st.checkbox("⚠️ Confirm I want to delete this item", key="confirm_delete_checkbox", help="You must check this box to enable deletion.")
                         if st.form_submit_button("🗑️ Delete Item", type="primary"):
                             if confirm_delete:
                                 success, msg = delete_item(edit_id)
                                 if success:
                                     st.success(msg)
-                                    st.session_state["confirm_delete_checkbox"] = False
+                                    st.session_state["_reset_delete_check"] = True
                                     time.sleep(1)
                                     st.rerun()
                                 else:
