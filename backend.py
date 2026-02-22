@@ -309,13 +309,15 @@ def log_transaction(item_id, item_name, type_, quantity, note, receipt_id=None, 
              return False, f"Log Failed: {e2}"
 
 def delete_item(item_id):
-    """Delete item and its transactions."""
+    """Delete item while preserving its transaction history."""
     try:
-        # Delete transactions first (foreign key might cascade but let's be safe)
-        supabase.table("transactions").delete().eq("item_id", item_id).execute()
-        # Delete item
+        # Decouple transactions from this item before deletion
+        # This keeps the history alive (item_name is already stored as text in transactions)
+        supabase.table("transactions").update({"item_id": None}).eq("item_id", item_id).execute()
+        
+        # Now delete the item from inventory
         supabase.table("inventory").delete().eq("id", item_id).execute()
-        return True, "Item and history deleted."
+        return True, "Item removed (history preserved)."
     except Exception as e:
         return False, str(e)
 
